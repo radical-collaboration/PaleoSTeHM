@@ -268,3 +268,55 @@ class GPRegression_V(GPModel):
 
         return lambda xnew: sample_next(xnew, outside_vars)
 
+
+def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
+    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+    GP).
+    ------------------Inputs----------------------------
+    test_X: an array of test input values
+    cov_matrix: full covariance matrix from GP regression
+    mean_rsl: GP regression produced mean RSL prediction
+    difftimestep: time period for averaging 
+    
+    ------------------Outputs---------------------------
+    difftimes: time series for the outputs
+    rate: averaged sea-level change rate
+    rate_sd: averaged sea-level change rate standard deviation
+    '''
+    
+    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
+    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
+    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
+    Mdiff = Mdiff[sub, :]
+    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
+    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
+    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
+    rate = Mdiff @ mean_rsl
+    
+    return difftimes,rate, rate_sd
+
+def cal_misfit(y,y_sigma,prediction):
+    
+    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
+
+def cal_likelihood(y,y_std,pred):
+    '''A function used to calcualte log likelihood function for a given prediction.
+    This calculation only considers uncertainty in y axis. 
+    
+    ------------Inputs------------------
+    y: reconstructed rsl
+    y_std: standard deviation of reconstructed rsl
+    pred: mean predction of rsl
+    
+    ------------Outputs------------------
+    likelihood: mean likelihood of prediction fit to observation
+    '''
+    from scipy.stats import norm
+
+    likelihood = 1 
+    for i in range(len(y)):
+        
+        norm_dis = norm(y[i], y_std[i])
+        likelihood*=norm_dis.pdf(pred[i])
+    likelihood= likelihood/len(y)
+    return np.log(likelihood)
