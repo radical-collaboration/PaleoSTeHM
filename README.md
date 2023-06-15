@@ -20,3 +20,6 @@ PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0.
 * **[Tutorials/PaleoSTeHM_Temporal.ipynb](Tutorials/PaleoSTeHM_Temporal.ipynb)** - A notebook contains tutorial about using Gaussian Process (GP) regression to infer temporal variation of sea-level change. It covers (1) Bayesian inference a single GP kernel using either Empirical Bayes or Fully Bayesian Analysis; (2) Bayesian inference with multiple GP kernels; (3) Bayesian inference incorporating temporal uncertainty using noisy-input Gaussian Process.   
 * **[Tutorials/PaleoSTeHM_EIV_NI.ipynb](Tutorials/PaleoSTeHM_EIV_NI.ipynb)** - A notebook contains tutorial about different methods to incorporate temporal uncertainty in GP regression. Specifically, it focuses on two methods: (1) noisy-input Gaussian Process; (2) errors-in-variable Gaussian Process. 
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details
