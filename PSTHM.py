@@ -269,6 +269,58 @@ class GPRegression_V(GPModel):
         return lambda xnew: sample_next(xnew, outside_vars)
 
 
+def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
+    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+    GP).
+    ------------------Inputs----------------------------
+    test_X: an array of test input values
+    cov_matrix: full covariance matrix from GP regression
+    mean_rsl: GP regression produced mean RSL prediction
+    difftimestep: time period for averaging 
+    
+    ------------------Outputs---------------------------
+    difftimes: time series for the outputs
+    rate: averaged sea-level change rate
+    rate_sd: averaged sea-level change rate standard deviation
+    '''
+    
+    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
+    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
+    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
+    Mdiff = Mdiff[sub, :]
+    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
+    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
+    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
+    rate = Mdiff @ mean_rsl
+    
+    return difftimes,rate, rate_sd
+
+def cal_misfit(y,y_sigma,prediction):
+    
+    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
+
+def cal_likelihood(y,y_std,pred):
+    '''A function used to calcualte log likelihood function for a given prediction.
+    This calculation only considers uncertainty in y axis. 
+    
+    ------------Inputs------------------
+    y: reconstructed rsl
+    y_std: standard deviation of reconstructed rsl
+    pred: mean predction of rsl
+    
+    ------------Outputs------------------
+    likelihood: mean likelihood of prediction fit to observation
+    '''
+    from scipy.stats import norm
+
+    log_likelihood = 1 
+    for i in range(len(y)):
+        
+        norm_dis = norm(y[i], y_std[i])
+        log_likelihood+=np.log(norm_dis.pdf(pred[i]))
+    
+    return log_likelihood
+
 class GPRegression_EIV(GPModel):
     r"""
     Gaussian Process Regression model.
@@ -414,55 +466,39 @@ class GPRegression_EIV(GPModel):
 
         return loc + self.mean_function(Xnew), cov
 
-
-def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
-    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
-    GP).
-    ------------------Inputs----------------------------
-    test_X: an array of test input values
-    cov_matrix: full covariance matrix from GP regression
-    mean_rsl: GP regression produced mean RSL prediction
-    difftimestep: time period for averaging 
-    
-    ------------------Outputs---------------------------
-    difftimes: time series for the outputs
-    rate: averaged sea-level change rate
-    rate_sd: averaged sea-level change rate standard deviation
+def SVI_optm(gpr,num_iteration=1000,lr=0.05):
     '''
-    
-    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
-    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
-    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
-    Mdiff = Mdiff[sub, :]
-    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
-    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
-    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
-    rate = Mdiff @ mean_rsl
-    
-    return difftimes,rate, rate_sd
+    A funciton to optimize the hyperparameters of a GP model using SVI
 
-def cal_misfit(y,y_sigma,prediction):
-    
-    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
+    ---------Inputs-----------
+    gpr: a GP model defined by pyro GPR regression
+    num_iteration: number of iterations for the optimization
+    lr: learning rate for the optimization
 
-def cal_likelihood(y,y_std,pred):
-    '''A function used to calcualte log likelihood function for a given prediction.
-    This calculation only considers uncertainty in y axis. 
-    
-    ------------Inputs------------------
-    y: reconstructed rsl
-    y_std: standard deviation of reconstructed rsl
-    pred: mean predction of rsl
-    
-    ------------Outputs------------------
-    likelihood: mean likelihood of prediction fit to observation
+    ---------Outputs-----------
+    gpr: a GP model with optimized hyperparameters
+    losses: a dictionary of loss
     '''
-    from scipy.stats import norm
+    import pyro
+    import torch
+    
+    #clear the param store
+    pyro.clear_param_store()
+    #convert the model to double precision
+    gpr = gpr.double()
+    #define the optimiser
+    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    #define the loss function
+    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+    #do the optimisation
+    losses=[]
+    
+    for i in range(num_iteration):
+        optimizer.zero_grad()
+        loss = loss_fn(gpr.model, gpr.guide)
+        loss.backward()
+        optimizer.step()
+        losses.append(loss.item())
+        gpr.set_mode("guide")
 
-    likelihood = 1 
-    for i in range(len(y)):
-        
-        norm_dis = norm(y[i], y_std[i])
-        likelihood*=norm_dis.pdf(pred[i])
-    likelihood= likelihood/len(y)
-    return np.log(likelihood)
+    return gpr,track_list
