@@ -12,6 +12,13 @@ from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method,PyroSample
 from pyro.util import warn_if_nan
 
+import torch
+from torch.distributions import constraints
+
+from pyro.contrib.gp.kernels.kernel import Kernel
+from pyro.nn.module import PyroParam
+
+
 def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     '''
     A function to plot uncertainty box for data with vertical and horizontal uncertainties.
@@ -501,4 +508,253 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05):
         losses.append(loss.item())
         gpr.set_mode("guide")
 
-    return gpr,track_list
+    return gpr
+
+
+#-------------------------Define Spatio-temporal GP kernels-------------------------
+
+def _torch_sqrt(x, eps=1e-12):
+    """
+    A convenient function to avoid the NaN gradient issue of :func:`torch.sqrt`
+    at 0.
+    """
+    # Ref: https://github.com/pytorch/pytorch/issues/2421
+    return (x + eps).sqrt()
+
+
+class Isotropy(Kernel):
+    """
+    Base class for a family of isotropic covariance kernels which are functions of the
+    distance :math:`|x-z|/l`, where :math:`l` is the length-scale parameter.
+
+    By default, the parameter ``lengthscale`` has size 1. To use the isotropic version
+    (different lengthscale for each dimension), make sure that ``lengthscale`` has size
+    equal to ``input_dim``.
+
+    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+
+        lengthscale = torch.tensor(1.0) if lengthscale is None else lengthscale
+        self.lengthscale = PyroParam(lengthscale, constraints.positive)
+        self.geo= geo
+    def _square_scaled_dist(self, X, Z=None):
+        """
+        Returns :math:`\|\frac{X-Z}{l}\|^2`.
+        """
+        if Z is None:
+            Z = X
+        X = self._slice_input(X)
+        Z = self._slice_input(Z)
+        if X.size(1) != Z.size(1):
+            raise ValueError("Inputs must have the same number of features.")
+
+        scaled_X = X / self.lengthscale
+        scaled_Z = Z / self.lengthscale
+        X2 = (scaled_X**2).sum(1, keepdim=True)
+        Z2 = (scaled_Z**2).sum(1, keepdim=True)
+        XZ = scaled_X.matmul(scaled_Z.t())
+        r2 = X2 - 2 * XZ + Z2.t()
+        return r2.clamp(min=0)
+
+    def _scaled_dist(self, X, Z=None):
+        """
+        Returns :math:`\|\frac{X-Z}{l}\|`.
+        """
+        return _torch_sqrt(self._square_scaled_dist(X, Z))
+
+    def _diag(self, X):
+        """
+        Calculates the diagonal part of covariance matrix on active features.
+        """
+        return self.variance.expand(X.size(0))
+
+    def _geo_dist2(self,X, R=6371.0):
+        '''
+        A function to calculate the squared distance matrix between each pair of X.
+        The function takes a PyTorch tensor of X and returns a matrix
+        where matrix[i, j] represents the spatial distance between the i-th and j-th X.
+        
+        -------Inputs-------
+        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+        R: approximate radius of earth in km
+        
+        -------Outputs-------
+        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
+        '''
+
+        # Convert coordinates to radians
+        X = torch.tensor(X)
+        coordinates_rad = torch.deg2rad(X)
+
+        # Extract latitude and longitude tensors
+        latitudes_rad = coordinates_rad[:, 0]
+        longitudes_rad = coordinates_rad[:, 1]
+
+        # Calculate differences in latitude and longitude
+        dlat = latitudes_rad[:, None] - latitudes_rad[None, :]
+        dlon = longitudes_rad[:, None] - longitudes_rad[None, :]
+
+        # Apply Haversine formula
+        a = torch.sin(dlat / 2) ** 2 + torch.cos(latitudes_rad[:, None]) * torch.cos(latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
+        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+
+        # Calculate the distance matrix
+        distance_matrix = R * c
+
+        return distance_matrix**2
+    
+    def _geo_dist(self, X):
+        """
+        Returns :geo distance between X
+        """
+        return _torch_sqrt(self._geo_dist2(X))
+
+class RBF(Isotropy):
+    r"""
+    Implementation of Radial Basis Function kernel:
+
+        :math:`k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).`
+
+    .. note:: This kernel also has name `Squared Exponential` in literature.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim,variance, lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X, Z)
+            return self.variance * torch.exp(-0.5 * r2)
+        else:
+            r2 = self._geo_dist2(X)
+            return torch.exp(-0.5 * r2)
+        
+
+
+
+class RationalQuadratic(Isotropy):
+    r"""
+    Implementation of RationalQuadratic kernel:
+
+        :math:`k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}
+        \right)^{-\alpha}.`
+
+    :param torch.Tensor scale_mixture: Scale mixture (:math:`\alpha`) parameter of this
+        kernel. Should have size 1.
+    """
+
+    def __init__(
+        self,
+        input_dim,
+        variance=None,
+        lengthscale=None,
+        scale_mixture=None,
+        active_dims=None,
+        geo=False
+    ):
+        super().__init__(input_dim, variance, lengthscale, active_dims,geo)
+
+        if scale_mixture is None:
+            scale_mixture = torch.tensor(1.0)
+        self.scale_mixture = PyroParam(scale_mixture, constraints.positive)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X, Z)
+            return self.variance * (1 + (0.5 / self.scale_mixture) * r2).pow(
+            -self.scale_mixture
+        )
+        else:
+            r2 = self._geo_dist2(X)
+            return (1 + (0.5 / self.scale_mixture) * r2).pow(
+            -self.scale_mixture
+            )           
+        
+
+
+
+class Exponential(Isotropy):
+    r"""
+    Implementation of Exponential kernel:
+
+        :math:`k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        if self.geo==False:
+            r = self._scaled_dist(X, Z)
+            return self.variance * torch.exp(-r)
+        else:
+            r = self._geo_dist(X)
+            return torch.exp(-r)
+        
+
+
+
+class Matern32(Isotropy):
+    r"""
+    Implementation of Matern32 kernel:
+
+        :math:`k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)
+        \exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        if self.geo==False:
+            r = self._scaled_dist(X, Z)
+            sqrt3_r = 3**0.5 * r
+            return self.variance * (1 + sqrt3_r) * torch.exp(-sqrt3_r)
+        else:
+            r = self._geo_dist(X)
+            sqrt3_r = 3**0.5 * r
+            return (1 + sqrt3_r) * torch.exp(-sqrt3_r)
+        
+
+
+
+class Matern52(Isotropy):
+    r"""
+    Implementation of Matern52 kernel:
+
+        :math:`k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times
+        \frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X, Z)
+            r = _torch_sqrt(r2)
+            sqrt5_r = 5**0.5 * r
+            return self.variance * (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+        else:
+            r2 = self._geo_dist2(X)
+            r = _torch_sqrt(r2)
+            sqrt5_r = 5**0.5 * r
+            return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+        
+        
