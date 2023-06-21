@@ -83,7 +83,7 @@ def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     return ax
 
 def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl_age,mean_rsl,
-                        rsl_sd,rsl_rate_age,mean_rate,rate_sd,axes=None,save=False):
+                        rsl_sd,rsl_rate_age,mean_rate,rate_sd,color='C0',axes=None,save=False):
     '''
     A function to create matplotlib plot for temporal regression results.
 
@@ -132,7 +132,7 @@ def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl
             mean_rsl_age,  # plot the two-sigma uncertainty about the mean
             (mean_rsl - 2.0 * rsl_sd),
             (mean_rsl + 2.0 * rsl_sd),
-            color="C0",
+            color=color,
             alpha=0.6,zorder=10)
     
     ax = axes[1]
@@ -142,14 +142,14 @@ def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl
                 rsl_rate_age,  # plot the two-sigma uncertainty about the mean
                 (mean_rate - 2.0 * rate_sd)*1000,
                 (mean_rate + 2.0 * rate_sd)*1000,
-                color="C0",
+                color=color,
                 alpha=0.6,zorder=10)
     ax.set_xlabel('Age (CE)')
     ax.set_ylabel('RSL rate (mm/year)')
 
     ax = axes[2]
     f = interpolate.interp1d(mean_rsl_age,mean_rsl)
-    ax.scatter(data_age,(data_rsl-f(data_age))*1000,s=150,marker='*',color='C0',alpha=0.6)
+    ax.scatter(data_age,(data_rsl-f(data_age))*1000,s=150,marker='*',color=color,alpha=0.6)
     ax.set_xlabel('Age (CE)')
     ax.set_ylabel('Residual (mm)');
     plt.show()
@@ -517,7 +517,7 @@ def plot_track_list(track_list):
 
     return axes
 
-def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_states=False):
+def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
     '''
     A function to run NUTS MCMC for GP regression model
 
@@ -526,7 +526,7 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
     num_samples: number of samples to draw from the posterior
     warmup_steps: number of warmup steps for NUTS
     target_accept_prob: target acceptance probability for NUTS
-    print_states: whether to print the states of the model
+    print_stats: whether to print the states of the model
 
     ----------Outputs---------
     mcmc: a pyro MCMC object
@@ -535,16 +535,17 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
     hmc_kernel = NUTS(gpr.model,target_accept_prob=target_accept_prob)
     mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
     mcmc.run()
-    if print_states:
+    if print_stats:
         for name, value in mcmc.get_samples().items():
             if 'kernel' in name:
-                print('{}: {:4.2f} +/ {:4.2f} (2sd)'.format(name,value.mean(),2*value.std()))
+                
+                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
                 print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
                 print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
 
     return mcmc
 
-def mcmc_predict(input_gpr,mcmc,Xnew):
+def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
     '''
     A function to prediction posterior mean and covariance of GP regression model
 
@@ -563,8 +564,13 @@ def mcmc_predict(input_gpr,mcmc,Xnew):
         y_loc, y_cov = gpr(X_new,full_cov=True)
         pyro.sample("y", dist.Delta(y_loc))
         pyro.sample("y_cov", dist.Delta(y_cov))
-    
-    posterior_predictive = Predictive(predictive, mcmc.get_samples())
+        
+    Xnew = torch.tensor(Xnew).double()
+    thin_mcmc = mcmc.get_samples()
+    for i in thin_mcmc:
+        thin_mcmc[i] = thin_mcmc[i][::thin_index]
+
+    posterior_predictive = Predictive(predictive, thin_mcmc)
     full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
     full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
     full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
