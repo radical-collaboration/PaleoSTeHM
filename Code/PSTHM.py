@@ -18,7 +18,12 @@ import torch
 from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
-from pyro.infer import MCMC, NUTS, HMC, Predictive
+from pyro.infer import MCMC, NUTS, Predictive
+import cartopy
+import cartopy.crs as ccrs
+import matplotlib.path as mpath
+import matplotlib.gridspec as gridspec
+import cartopy.feature as cfeature
 
 font = {'weight':'normal',
        'size':20}
@@ -213,6 +218,160 @@ def plot_loss(loss):
     plt.plot(loss)
     plt.xlabel("Iterations")
     _ = plt.ylabel("Loss")  # supress output text
+
+
+def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis'):
+    '''
+    A function to plot the spatial RSL map and uncertainty map
+
+    ------Inputs------
+    pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+    y_mean: the mean of the predicted RSL
+    y_var: the covariance matrix of the predicted RSL
+
+    ------Outputs------
+    A figure with two subplots, the left subplot is the RSL map, the right subplot is the RSL uncertainty map
+    '''
+    
+    if torch.is_tensor(pred_matrix):
+        pred_matrix =pred_matrix.detach().numpy()
+    lat_matrix = np.unique(pred_matrix[:,1])
+    lon_matrix = np.unique(pred_matrix[:,2])
+    lon_mat,lat_mat = np.meshgrid(lon_matrix,lat_matrix)
+
+    fig = plt.figure(figsize=(20,10))
+    ax2 = fig.add_subplot(1,2,1,projection=ccrs.PlateCarree())
+    ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
+    ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
+    ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
+    cax = ax2.pcolor(lon_mat,lat_mat,y_mean.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
+    cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
+    cbar.set_label('RSL (m)')
+    ax2.set_title('RSL map')
+    
+    ax2 = fig.add_subplot(1,2,2,projection=ccrs.PlateCarree())
+    ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
+    ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
+    ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
+    y_std = y_var.diag().sqrt()
+    cax = ax2.pcolor(lon_mat,lat_mat,y_std.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
+    cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
+    cbar.set_label('RSL uncertainty (m)')
+    ax2.set_title('RSL uncertainty map');
+
+    return fig,ax2
+
+def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_region,cmap='viridis',):    
+    '''
+    A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps
+
+    --------Inputs--------
+    pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+    y_mean: the mean of the predicted RSL from GP model
+    y_var: the covariance matrix of the predicted RSL from GP model
+    rsl_lon: the longitude of the RSL data
+    rsl_lat: the latitude of the RSL data
+    rsl_age: the age of the RSL data
+    rsl_region: the region of the RSL data
+    cmap: the colormap used in the plot
+
+    --------Outputs--------
+    A figure with three subplots, the left subplot is the mean RSL map, the middle subplot is the RSL change rate map, 
+    the right subplot is the RSL uncertainty map
+    '''
+    if torch.is_tensor(pred_matrix):
+        pred_matrix =pred_matrix.detach().numpy()
+    time_mat = np.unique(pred_matrix[:,0])
+    lon_matrix = np.unique(pred_matrix[:,2])
+    lat_matrix = np.unique(pred_matrix[:,1])
+    lon_mat,lat_mat = np.meshgrid(lon_matrix,lat_matrix)
+    y_std = y_var.diag().sqrt()
+
+    mean_rsl = np.zeros([len(lat_matrix),len(lon_matrix)])
+    for i in range(len(time_mat)):
+        mean_rsl+=y_mean[i::len(time_mat)].reshape([len(lat_matrix),len(lon_matrix)]).detach().numpy()
+    mean_rsl = mean_rsl/len(time_mat)
+
+    fig = plt.figure(figsize=(30,10))
+    #-----------------plot the mean RSL map-----------------
+    ax2 = fig.add_subplot(1,3,1,projection=ccrs.PlateCarree())
+    ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
+    ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
+    ax2.set_extent([np.min(lon_matrix),np.max(lon_matrix),np.min(lat_matrix),np.max(lat_matrix)])
+
+    cax = ax2.pcolor(lon_mat,lat_mat,mean_rsl,transform=ccrs.PlateCarree(),cmap=cmap)
+    cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
+    cbar.set_label('RSL (m)')
+    ax2.set_title('RSL map')
+
+    #-----------------plot the RSL rate map-----------------
+    rsl_rate = (y_mean[0::len(time_mat)] - y_mean[len(time_mat)-1::len(time_mat)]).detach().numpy().reshape([len(lat_matrix),len(lon_matrix)])/(time_mat[0]-time_mat[-1])
+    ax2 = fig.add_subplot(1,3,2,projection=ccrs.PlateCarree())
+    ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
+    ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
+    ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
+    
+    cax = ax2.pcolor(lon_mat,lat_mat,rsl_rate.reshape(lon_mat.shape)*1000,transform=ccrs.PlateCarree(),cmap=cmap)
+    cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
+    cbar.set_label('RSL change rate (m/kyr)')
+    ax2.set_title('RSL change rate');
+
+    #-----------------plot the RSL rate map-----------------
+    min_time = np.min(time_mat)
+    max_time = np.max(time_mat)
+    time_index = (rsl_age>=min_time )& (rsl_age<=max_time)
+
+    ax2 = fig.add_subplot(1,3,3,projection=ccrs.PlateCarree())
+    sd_rsl = np.zeros([len(lat_matrix),len(lon_matrix)])
+
+    for i in range(len(time_mat)):
+        sd_rsl+=y_std[i::len(time_mat)].reshape([len(lat_matrix),len(lon_matrix)]).detach().numpy()
+    sd_rsl = sd_rsl/len(time_mat)
+
+    ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
+    ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
+    ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
+    cax = ax2.pcolor(lon_mat,lat_mat,sd_rsl,transform=ccrs.PlateCarree(),cmap=cmap)
+
+    for i in np.unique(rsl_region):
+        region_index = rsl_region[time_index]==i
+
+        ax2.scatter(np.mean(rsl_lon[time_index][region_index]),np.mean(rsl_lat[time_index][region_index]),transform=ccrs.PlateCarree(),
+                s=len(rsl_lon[time_index][region_index])*20,marker='o',facecolor='none',ec='darkred',linewidth=3,zorder=20)  
+
+    cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
+    cbar.set_label('RSL uncertainty (m)')
+    sc = ax2.scatter([0],[0],s=100,label='5 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+            linewidth=3)
+    sc2 = ax2.scatter([0],[0],s=200,label='10 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+            linewidth=3)
+    sc3 = ax2.scatter([0],[0],s=400,label='20 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+            linewidth=3)
+
+    ax2.legend(handles=[sc,sc2,sc3], labels=['5 RSL data','10 RSL data','20 RSL data'], loc = 4)
+
+    ax2.set_title('RSL one singma uncertainty');
+
+def gen_pred_matrix(age,lat,lon):
+    '''
+    A function to generate an input matrix for Spatio-temporal GP model
+
+    ----------Inputs----------------
+    age: a numpy array, age of the prediction points
+    lat: a numpy array, latitude of the prediction points
+    lon: a numpy array, longitude of the prediction points
+
+    ----------Outputs----------------
+    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model
+    '''
+    age = np.array(age)
+    lat = np.array(lat)
+    lon = np.array(lon)
+
+    lon_matrix,lat_matrix,age_matrix = np.meshgrid(lon,lat,age)
+    
+    output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
+    return output_matrix
 
 
 class GPRegression_V(GPModel):
@@ -1108,5 +1267,4 @@ class Matern52(Isotropy):
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
-        
         
