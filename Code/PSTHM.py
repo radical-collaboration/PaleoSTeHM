@@ -25,7 +25,7 @@ font = {'weight':'normal',
 
 matplotlib.rc('font',**font)
 
-def load_rsl_data(file):
+def load_local_rsl_data(file):
     '''
     A function to load rsl data from a csv file, this csv 
     file should be presented in the same format as NJ_CC.csv in data folder
@@ -56,6 +56,57 @@ def load_rsl_data(file):
     x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
 
     return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
+
+def load_regional_rsl_data(file):
+    '''
+    A function to load rsl data from a csv file, this csv 
+    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
+
+    ---------Inputs---------
+    file: str, the path to the csv file
+
+    ---------Outputs---------
+    marine_limiting: a list containing marine limiting data (details below)
+    SLIP: a list containing sea-level index point data
+    terrestrial limiting: a list containing terrestrial limiting data
+
+    data within each list:
+    X: torch.tensor, the age of rsl data
+    y: torch.tensor, the rsl data
+    y_sigma: torch.tensor, one sigma uncertainty of rsl data
+    x_sigma: torch.tensor, one uncertainty of age data
+    lon: numpy.array, 
+    rsl_region: a number indicating the region where data locates at
+    '''
+
+    #load data
+    data = pd.read_csv(file)
+    rsl = data['RSL']
+    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
+    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
+    rsl_lon = data['Longitude']
+    rsl_lat = data['Latitude']
+    rsl_region = data['Region.1']
+    rsl_limiting = data['Limiting']
+    marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
+
+    #convert RSL data into tonsors
+    X = torch.tensor(rsl_age).flatten() #standardise age
+    y = torch.tensor(rsl).flatten()
+    y_sigma = torch.tensor(rsl_2sd/2).flatten()
+    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
+    
+    marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
+                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
+
+    SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
+                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
+
+    marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
+                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
+
+    return marine_limiting, SLIP, marine_limiting
 
 def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     '''
