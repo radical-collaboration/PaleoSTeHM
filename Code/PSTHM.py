@@ -521,7 +521,9 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,update_fre=100):
             y_mean.sum().backward(retain_graph=True)
             y_rate = x_test.grad.detach().numpy()
             if y_rate.ndim>1: y_rate = y_rate[:,0]
+            
             new_sigma = np.sqrt((y_rate**2*(x_sigma.detach().numpy())**2)+y_sigma**2)
+            print((torch.tensor(new_sigma)**2- gpr.noise).sum())
             gpr.noise = torch.tensor(new_sigma**2)
         optimizer.zero_grad()
         loss = loss_fn(gpr.model, gpr.guide)
