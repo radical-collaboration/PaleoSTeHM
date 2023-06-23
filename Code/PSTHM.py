@@ -487,7 +487,7 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05):
     return gpr,track_list
 
 
-def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05):
+def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,update_fre=100):
     '''
     A funciton to optimize the hyperparameters of a GP model using SVI
 
@@ -514,12 +514,13 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05):
     track_list = []
     y_sigma = gpr.noise.detach().numpy()**0.5
     for i in tqdm(range(num_iteration)):
-        #update the variance for every 100 iterations
-        if i>0 and i%100==0:
+        #update the variance for every update_fre iterations
+        if i>0 and i%update_fre==0:
             x_test = torch.tensor(gpr.X.clone().float(),requires_grad=True)
             y_mean, y_var = gpr(x_test.double(), full_cov=False)
             y_mean.sum().backward(retain_graph=True)
             y_rate = x_test.grad.detach().numpy()
+            if y_rate.ndim>1: y_rate = y_rate[:,0]
             new_sigma = np.sqrt((y_rate**2*(x_sigma.detach().numpy())**2)+y_sigma**2)
             gpr.noise = torch.tensor(new_sigma**2)
         optimizer.zero_grad()
