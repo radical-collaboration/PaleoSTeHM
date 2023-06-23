@@ -220,7 +220,7 @@ def plot_loss(loss):
     _ = plt.ylabel("Loss")  # supress output text
 
 
-def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis'):
+def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis',save_fig=False):
     '''
     A function to plot the spatial RSL map and uncertainty map
 
@@ -247,7 +247,7 @@ def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis'):
     cax = ax2.pcolor(lon_mat,lat_mat,y_mean.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL (m)')
-    ax2.set_title('RSL map')
+    ax2.set_title('RSL map at {:5.3f} CE'.format(pred_matrix[0,0]))
     
     ax2 = fig.add_subplot(1,2,2,projection=ccrs.PlateCarree())
     ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
@@ -257,11 +257,11 @@ def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis'):
     cax = ax2.pcolor(lon_mat,lat_mat,y_std.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL uncertainty (m)')
-    ax2.set_title('RSL uncertainty map');
+    ax2.set_title('RSL uncertainty map at {:5.3f} CE'.format(pred_matrix[0,0]));
 
-    return fig,ax2
+    if save_fig: plt.savefig('../Figures/Temp_Spatial_RSL.png',dpi=300)
 
-def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_region,cmap='viridis',):    
+def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_region,cmap='viridis',save_fig=False):    
     '''
     A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps
 
@@ -286,11 +286,14 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     lat_matrix = np.unique(pred_matrix[:,1])
     lon_mat,lat_mat = np.meshgrid(lon_matrix,lat_matrix)
     y_std = y_var.diag().sqrt()
-
+    
     mean_rsl = np.zeros([len(lat_matrix),len(lon_matrix)])
     for i in range(len(time_mat)):
         mean_rsl+=y_mean[i::len(time_mat)].reshape([len(lat_matrix),len(lon_matrix)]).detach().numpy()
     mean_rsl = mean_rsl/len(time_mat)
+
+    min_time = np.min(time_mat)
+    max_time = np.max(time_mat)
 
     fig = plt.figure(figsize=(30,10))
     #-----------------plot the mean RSL map-----------------
@@ -302,7 +305,7 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     cax = ax2.pcolor(lon_mat,lat_mat,mean_rsl,transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL (m)')
-    ax2.set_title('RSL map')
+    ax2.set_title('RSL map between {:5.3f} and {:5.3f} CE'.format(min_time,max_time))
 
     #-----------------plot the RSL rate map-----------------
     rsl_rate = (y_mean[0::len(time_mat)] - y_mean[len(time_mat)-1::len(time_mat)]).detach().numpy().reshape([len(lat_matrix),len(lon_matrix)])/(time_mat[0]-time_mat[-1])
@@ -314,11 +317,9 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     cax = ax2.pcolor(lon_mat,lat_mat,rsl_rate.reshape(lon_mat.shape)*1000,transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL change rate (m/kyr)')
-    ax2.set_title('RSL change rate');
+    ax2.set_title('RSL change rate between {:5.3f} and {:5.3f} CE'.format(min_time,max_time))
 
     #-----------------plot the RSL rate map-----------------
-    min_time = np.min(time_mat)
-    max_time = np.max(time_mat)
     time_index = (rsl_age>=min_time )& (rsl_age<=max_time)
 
     ax2 = fig.add_subplot(1,3,3,projection=ccrs.PlateCarree())
@@ -350,8 +351,11 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
 
     ax2.legend(handles=[sc,sc2,sc3], labels=['5 RSL data','10 RSL data','20 RSL data'], loc = 4)
 
-    ax2.set_title('RSL one singma uncertainty');
+    ax2.set_title('One sigma RSL uncertainty between {:5.3f} and {:5.3f} CE'.format(min_time,max_time));
 
+    if save_fig: 
+        plt.savefig('RSL_map_{}_{}.png'.format(min_time,max_time),dpi=300,bbox_inches='tight')
+    
 def gen_pred_matrix(age,lat,lon):
     '''
     A function to generate an input matrix for Spatio-temporal GP model
