@@ -113,6 +113,62 @@ def load_regional_rsl_data(file):
 
     return marine_limiting, SLIP, marine_limiting
 
+
+def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
+    '''
+    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.
+    We have filtered out data with -99999 value, missing data (with 'Y' indicated) or any flagged data (i.e., the fourth column is not 0).
+    ---------Inputs---------
+    data_folder: str, the path to the data folder
+    min_lat: float, the minimum latitude of the region of interest
+    max_lat: float, the maximum latitude of the region of interest
+    min_lon: float, the minimum longitude of the region of interest
+    max_lon: float, the maximum longitude of the region of interest
+
+    ---------Outputs---------
+    US_AT_data: a list containing US Atlantic coast data 
+    '''
+    if data_folder[-1]!='/':
+        data_folder = data_folder+'/'
+    site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
+    US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
+    US_AT_site = site_file.iloc[:,0][US_AT_index].values
+    US_AT_lat = site_file.iloc[:,1][US_AT_index].values
+    US_AT_lon = site_file.iloc[:,2][US_AT_index].values
+
+    #generate US Atlantic coast data
+    US_AT_data = None
+    for i,p in enumerate(US_AT_site):
+        if US_AT_data is None:
+            US_AT_data = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            US_AT_data[4] = US_AT_lat[i]
+            US_AT_data[5] = US_AT_lon[i]
+        else:
+            tmp = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            tmp[4] = US_AT_lat[i]
+            tmp[5] = US_AT_lon[i]
+            US_AT_data = pd.concat([US_AT_data,tmp],ignore_index=True)
+    
+    data_filter = US_AT_data.iloc[:,1]!=-99999
+    data_filter_2 = US_AT_data.iloc[:,2]=='N'
+    data_filter_3 = US_AT_data.iloc[:,3]==0
+    US_site_coord = np.unique(US_AT_data.iloc[:,4:],axis=0)
+    data_filter_4 = np.zeros(len(data_filter_3),dtype=bool)
+    data_filter_5 = np.zeros(len(data_filter_3),dtype=bool)
+    new_rsl = np.zeros(len(data_filter_3))
+    for i in range(len(US_site_coord)):
+        site_index = np.sum(US_AT_data.iloc[:,4:],axis=1) == np.sum(US_site_coord[i])
+        if np.max(US_AT_data[site_index].iloc[:,0])-np.min(US_AT_data[site_index].iloc[:,0])>=min_time_span:
+            data_filter_4[site_index] = True
+        if np.max(US_AT_data[site_index].iloc[:,0])>=latest_age:
+            data_filter_5[site_index] = True
+        new_rsl[site_index] = US_AT_data[site_index].iloc[:,1]- US_AT_data[site_index].iloc[-1,1]
+    US_AT_data.iloc[:,1] = new_rsl
+    data_filter_all = data_filter & data_filter_2 & data_filter_3 & data_filter_4 & data_filter_5
+    US_AT_data = US_AT_data[data_filter_all]
+    
+    return US_AT_data
+
 def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     '''
     A function to plot uncertainty box for data with vertical and horizontal uncertainties.
@@ -247,7 +303,7 @@ def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis',save_fig=Fal
     cax = ax2.pcolor(lon_mat,lat_mat,y_mean.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL (m)')
-    ax2.set_title('RSL map at {:5.3f} CE'.format(pred_matrix[0,0]))
+    ax2.set_title('{:5.1f} CE'.format(pred_matrix[0,0]))
     
     ax2 = fig.add_subplot(1,2,2,projection=ccrs.PlateCarree())
     ax2.set_extent([np.min(pred_matrix[:,2]),np.max(pred_matrix[:,2]),np.min(pred_matrix[:,1]),np.max(pred_matrix[:,1])])
@@ -257,11 +313,11 @@ def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis',save_fig=Fal
     cax = ax2.pcolor(lon_mat,lat_mat,y_std.detach().numpy().reshape(lon_mat.shape),transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL uncertainty (m)')
-    ax2.set_title('RSL uncertainty map at {:5.3f} CE'.format(pred_matrix[0,0]));
+    ax2.set_title('{:5.1f} CE'.format(pred_matrix[0,0]));
 
     if save_fig: plt.savefig('../Figures/Temp_Spatial_RSL.png',dpi=300)
 
-def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_region,cmap='viridis',save_fig=False):    
+def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_region,cmap='viridis',plot_site=False,save_fig=False):    
     '''
     A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps
 
@@ -305,7 +361,7 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     cax = ax2.pcolor(lon_mat,lat_mat,mean_rsl,transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL (m)')
-    ax2.set_title('RSL map between {:5.3f} and {:5.3f} CE'.format(min_time,max_time))
+    ax2.set_title('{:5.1f} to {:5.1f} CE'.format(min_time,max_time))
 
     #-----------------plot the RSL rate map-----------------
     rsl_rate = (y_mean[0::len(time_mat)] - y_mean[len(time_mat)-1::len(time_mat)]).detach().numpy().reshape([len(lat_matrix),len(lon_matrix)])/(time_mat[0]-time_mat[-1])
@@ -317,7 +373,7 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     cax = ax2.pcolor(lon_mat,lat_mat,rsl_rate.reshape(lon_mat.shape)*1000,transform=ccrs.PlateCarree(),cmap=cmap)
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
     cbar.set_label('RSL change rate (m/kyr)')
-    ax2.set_title('RSL change rate between {:5.3f} and {:5.3f} CE'.format(min_time,max_time))
+    ax2.set_title('{:5.1f} to {:5.1f} CE'.format(min_time,max_time))
 
     #-----------------plot the RSL rate map-----------------
     time_index = (rsl_age>=min_time )& (rsl_age<=max_time)
@@ -333,25 +389,27 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     ax2.add_feature(cartopy.feature.LAND,edgecolor='black',zorder=10,alpha=0.5)
     ax2.add_feature(cfeature.STATES, edgecolor='black', zorder=10)
     cax = ax2.pcolor(lon_mat,lat_mat,sd_rsl,transform=ccrs.PlateCarree(),cmap=cmap)
-
-    for i in np.unique(rsl_region):
-        region_index = rsl_region[time_index]==i
-
-        ax2.scatter(np.mean(rsl_lon[time_index][region_index]),np.mean(rsl_lat[time_index][region_index]),transform=ccrs.PlateCarree(),
-                s=len(rsl_lon[time_index][region_index])*20,marker='o',facecolor='none',ec='darkred',linewidth=3,zorder=20)  
-
     cbar = fig.colorbar(cax, ax=ax2, orientation='vertical', pad=0.01)
-    cbar.set_label('RSL uncertainty (m)')
-    sc = ax2.scatter([0],[0],s=100,label='5 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
-            linewidth=3)
-    sc2 = ax2.scatter([0],[0],s=200,label='10 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
-            linewidth=3)
-    sc3 = ax2.scatter([0],[0],s=400,label='20 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
-            linewidth=3)
+    cbar.set_label('One sigma RSL uncertainty (m)')
 
-    ax2.legend(handles=[sc,sc2,sc3], labels=['5 RSL data','10 RSL data','20 RSL data'], loc = 4)
+    if plot_site:
+        for i in np.unique(rsl_region):
+            region_index = rsl_region[time_index]==i
 
-    ax2.set_title('One sigma RSL uncertainty between {:5.3f} and {:5.3f} CE'.format(min_time,max_time));
+            ax2.scatter(np.mean(rsl_lon[time_index][region_index]),np.mean(rsl_lat[time_index][region_index]),transform=ccrs.PlateCarree(),
+                    s=len(rsl_lon[time_index][region_index])*40,marker='o',facecolor='none',ec='darkred',linewidth=3,zorder=20)  
+
+        
+        sc = ax2.scatter([0],[0],s=200,label='5 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+                linewidth=3)
+        sc2 = ax2.scatter([0],[0],s=400,label='10 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+                linewidth=3)
+        sc3 = ax2.scatter([0],[0],s=800,label='20 RSL data',marker='o',facecolor='none',ec='darkred',zorder=-20,
+                linewidth=3)
+
+        ax2.legend(handles=[sc,sc2,sc3], labels=['5 RSL data','10 RSL data','20 RSL data'], loc = 4)
+
+    ax2.set_title('{:5.1f} to {:5.3f} CE'.format(min_time,max_time));
 
     if save_fig: 
         plt.savefig('RSL_map_{}_{}.png'.format(min_time,max_time),dpi=300,bbox_inches='tight')
@@ -442,12 +500,14 @@ class GPRegression_V(GPModel):
         super().__init__(X, y, kernel, mean_function, jitter)
 
 #         noise = self.X.new_tensor(1.0) if noise is None else noise
-        self.noise = noise
         self = self.double() #GP in pyro should use double precision
         self.X = self.X.double()
         self.y = self.y.double()
-        self.noise = self.noise.double()
-#         self.noise = PyroParam(noise, constraints.positive)
+        if noise is None:
+            noise = self.X.new_tensor(1.0)
+            self.noise = PyroParam(noise, constraints.positive)
+        else:
+            self.noise = noise.double()
     @pyro_method
     def model(self):
         self.set_mode("model")
@@ -918,8 +978,16 @@ class GPRegression_EIV(GPModel):
         
         super().__init__(X, y,kernel, mean_function, jitter)
 
-        self.noise = noise
-        self.xerr = xerr
+        
+        self.xerr = xerr.double()
+        self = self.double() #GP in pyro should use double precision
+        self.X = self.X.double()
+        self.y = self.y.double()
+
+        if noise is None:
+            self.noise = PyroParam(noise, constraints.positive)
+        else:
+            self.noise = self.noise.double()
     @pyro_method
     def model(self):
         self.set_mode("model")
