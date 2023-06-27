@@ -23,3 +23,7 @@ PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0.
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details
+
+## Acknowledgements
+
+This work is supported by the National Science Foundation under award 2148265. The opinions, findings, and conclusions or recommendations expressed are those of the authors and do not necessarily reflect the views of the National Science Foundation.
