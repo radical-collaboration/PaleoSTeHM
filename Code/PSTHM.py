@@ -13,8 +13,10 @@ from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method,PyroSample
 from pyro.util import warn_if_nan
 from scipy import interpolate
+import os
 from tqdm.notebook import tqdm
 import torch
+import zipfile
 from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
@@ -130,6 +132,9 @@ def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,mi
     '''
     if data_folder[-1]!='/':
         data_folder = data_folder+'/'
+    if len(os.listdir(data_folder))<5:
+        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
+            zip_ref.extractall(data_folder)
     site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
     US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
     US_AT_site = site_file.iloc[:,0][US_AT_index].values
