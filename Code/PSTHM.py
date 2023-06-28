@@ -13,8 +13,10 @@ from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method,PyroSample
 from pyro.util import warn_if_nan
 from scipy import interpolate
+import os
 from tqdm.notebook import tqdm
 import torch
+import zipfile
 from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
@@ -130,6 +132,9 @@ def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,mi
     '''
     if data_folder[-1]!='/':
         data_folder = data_folder+'/'
+    if len(os.listdir(data_folder))<5:
+        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
+            zip_ref.extractall(data_folder)
     site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
     US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
     US_AT_site = site_file.iloc[:,0][US_AT_index].values
@@ -435,6 +440,34 @@ def gen_pred_matrix(age,lat,lon):
     output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
     return output_matrix
 
+def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
+    N = len(gpr.X)
+    M = pred_matrix.size(0)
+    f_loc = gpr.y - gpr.mean_function(gpr.X)
+    latent_shape = f_loc.shape[:-1]
+    loc_shape = latent_shape + (M,)
+    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
+    f_loc_2D = f_loc.reshape(N, -1)
+    loc_shape = latent_shape + (M,)
+    v_2D = f_loc_2D
+    Kff = gpr.kernel(gpr.X).contiguous()
+    Kff.view(-1)[:: N + 1] += gpr.jitter + gpr.noise  # add noise to the diagonal
+    Lff = torch.linalg.cholesky(Kff)
+    
+    output = []
+    for kernel in kernels:
+        Kfs = kernel(gpr.X, pred_matrix)
+        pack = torch.cat((f_loc_2D, Kfs), dim=1)
+        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
+        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
+        Qss = W.matmul(W.t())
+        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
+        loc = W.matmul(v_2D).t().reshape(loc_shape)
+        Kss = kernel(pred_matrix)
+        cov = Kss - Qss
+        output.append((loc, cov))
+        
+    return output
 
 class GPRegression_V(GPModel):
     r"""
