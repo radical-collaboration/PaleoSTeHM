@@ -440,6 +440,34 @@ def gen_pred_matrix(age,lat,lon):
     output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
     return output_matrix
 
+def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
+    N = len(gpr.X)
+    M = pred_matrix.size(0)
+    f_loc = gpr.y - gpr.mean_function(gpr.X)
+    latent_shape = f_loc.shape[:-1]
+    loc_shape = latent_shape + (M,)
+    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
+    f_loc_2D = f_loc.reshape(N, -1)
+    loc_shape = latent_shape + (M,)
+    v_2D = f_loc_2D
+    Kff = gpr.kernel(gpr.X).contiguous()
+    Kff.view(-1)[:: N + 1] += gpr.jitter + gpr.noise  # add noise to the diagonal
+    Lff = torch.linalg.cholesky(Kff)
+    
+    output = []
+    for kernel in kernels:
+        Kfs = kernel(gpr.X, pred_matrix)
+        pack = torch.cat((f_loc_2D, Kfs), dim=1)
+        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
+        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
+        Qss = W.matmul(W.t())
+        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
+        loc = W.matmul(v_2D).t().reshape(loc_shape)
+        Kss = kernel(pred_matrix)
+        cov = Kss - Qss
+        output.append((loc, cov))
+        
+    return output
 
 class GPRegression_V(GPModel):
     r"""
