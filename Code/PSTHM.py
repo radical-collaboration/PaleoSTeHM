@@ -700,7 +700,7 @@ class GPRegression_V(GPModel):
         return lambda xnew: sample_next(xnew, outside_vars)
 
 
-def SVI_optm(gpr,num_iteration=1000,lr=0.05):
+def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
     '''
     A funciton to optimize the hyperparameters of a GP model using SVI
 
@@ -708,6 +708,9 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05):
     gpr: a GP model defined by pyro GPR regression
     num_iteration: number of iterations for the optimization
     lr: learning rate for the optimization
+    decay_r: decay rate for the learning rate
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
 
     ---------Outputs-----------
     gpr: a GP model with optimized hyperparameters
@@ -720,12 +723,15 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05):
     gpr = gpr.double()
     #define the optimiser
     optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
+
     #define the loss function
     loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
     #do the optimisation
     track_list = []
 
     for i in tqdm(range(num_iteration)):
+        scheduler.step()
         optimizer.zero_grad()
         loss = loss_fn(gpr.model, gpr.guide)
         loss.backward()
@@ -743,7 +749,7 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05):
     return gpr,track_list
 
 
-def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,update_fre=100):
+def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100,gpu=False):
     '''
     A funciton to optimize the hyperparameters of a GP model using SVI
 
@@ -752,7 +758,9 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,update_fre=100):
     x_sigma: one sigma uncertainty for input data
     num_iteration: number of iterations for the optimization
     lr: learning rate for the optimization
-
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+    gpu: whether use gpu to accelerate training 
     ---------Outputs-----------
     gpr: a GP model with optimized hyperparameters
     track: a dictionary of loss
@@ -764,22 +772,30 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,update_fre=100):
     gpr = gpr.double()
     #define the optimiser
     optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    #define the learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
     #define the loss function
     loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
     #do the optimisation
     track_list = []
-    y_sigma = gpr.noise.detach().numpy()**0.5
+    y_sigma = gpr.noise**0.5
     for i in tqdm(range(num_iteration)):
-        #update the variance for every update_fre iterations
-        if i>0 and i%update_fre==0:
-            x_test = torch.tensor(gpr.X.clone().float(),requires_grad=True)
-            y_mean, y_var = gpr(x_test.double(), full_cov=False)
-            y_mean.sum().backward(retain_graph=True)
-            y_rate = x_test.grad.detach().numpy()
-            if y_rate.ndim>1: y_rate = y_rate[:,0]
-            
-            new_sigma = np.sqrt((y_rate**2*(x_sigma.detach().numpy())**2)+y_sigma**2)
-            gpr.noise = torch.tensor(new_sigma**2)
+        #update vertical noise based on gradient
+        if gpu:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
+        else:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
+        y_mean, _ = gpr(x_test.double(), full_cov=False)
+        y_mean.sum().backward(retain_graph=True)
+        if gpu:
+            y_rate = x_test.grad.cuda()
+        else:
+            y_rate = x_test.grad
+        if y_rate.ndim>1: y_rate = y_rate[:,0]
+        new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
+        gpr.noise = torch.tensor(new_sigma**2)
+
+        scheduler.step()
         optimizer.zero_grad()
         loss = loss_fn(gpr.model, gpr.guide)
         loss.backward()
