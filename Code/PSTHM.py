@@ -12,6 +12,8 @@ from pyro.contrib.gp.models.model import GPModel
 from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method,PyroSample
 from pyro.util import warn_if_nan
+from pyro.infer.autoguide import AutoDiagonalNormal,AutoMultivariateNormal, init_to_mean
+from pyro.infer import SVI, Trace_ELBO
 from scipy import interpolate
 import os
 from tqdm.notebook import tqdm
@@ -23,6 +25,7 @@ from pyro.nn.module import PyroParam
 from pyro.infer import MCMC, NUTS, Predictive
 import cartopy
 import cartopy.crs as ccrs
+
 import matplotlib.path as mpath
 import matplotlib.gridspec as gridspec
 import cartopy.feature as cfeature
@@ -1388,4 +1391,75 @@ class Matern52(Isotropy):
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
-        
+
+#THis model can be implemented within a class
+def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    
+    linear_combination = pyro.sample("b", intercept_prior)
+    #Define our coefficient prior
+    
+    beta_coef = pyro.sample("a", coefficient_prior)
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+    
+    #calculate mean prediction
+    mean = linear_combination + (x_noisy * beta_coef)
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+def opti_pyro_mdoel(model,X, y, x_sigma,y_sigma,*args,lr = 0.01,number_of_steps=1500):
+    '''
+    A function to optimize the pyro model
+
+    ------------Inputs--------------
+    model: PaleoSTeHM model
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    *args: prior distributions for the model
+    lr: learning rate
+    number_of_steps: number of steps to train the model
+
+    ------------Outputs--------------
+    guide: the optimized model
+    losses: the loss of the model during training
+    '''
+
+    #-------Construct model---------
+    model = model
+    guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
+
+    #-------Train the model---------
+    pyro.clear_param_store()
+    losses = []
+    adam = pyro.optim.Adam({"lr":lr})
+    svi = SVI(model, guide, adam, loss=Trace_ELBO())
+    for j in tqdm(range(number_of_steps)):
+        # calculate the loss and take a gradient step
+        loss = svi.step(X, y, x_sigma,y_sigma,*args)
+        losses.append(loss/len(X))
+    return guide,losses
+
+
+def cal_MSE(y,yhat):
+    '''
+    A function to calculate MSE coefficient
+    '''
+    MSE = np.sum((yhat-y)**2)/len(y)
+    return MSE
