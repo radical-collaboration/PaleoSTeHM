@@ -12,6 +12,8 @@ from pyro.contrib.gp.models.model import GPModel
 from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method,PyroSample
 from pyro.util import warn_if_nan
+from pyro.infer.autoguide import AutoDiagonalNormal,AutoMultivariateNormal, init_to_mean
+from pyro.infer import SVI, Trace_ELBO
 from scipy import interpolate
 import os
 from tqdm.notebook import tqdm
@@ -23,6 +25,7 @@ from pyro.nn.module import PyroParam
 from pyro.infer import MCMC, NUTS, Predictive
 import cartopy
 import cartopy.crs as ccrs
+
 import matplotlib.path as mpath
 import matplotlib.gridspec as gridspec
 import cartopy.feature as cfeature
@@ -1388,4 +1391,210 @@ class Matern52(Isotropy):
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+
+#THis model can be implemented within a class
+def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    
+    linear_combination = pyro.sample("b", intercept_prior)
+    #Define our coefficient prior
+    
+    beta_coef = pyro.sample("a", coefficient_prior)
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+    
+    #calculate mean prediction
+    mean = linear_combination + (x_noisy * beta_coef)
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+def opti_pyro_mdoel(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
+    '''
+    A function to optimize the pyro model
+
+    ------------Inputs--------------
+    model: PaleoSTeHM model
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    *args: prior distributions for the model
+    lr: learning rate
+    number_of_steps: number of steps to train the model
+
+    ------------Outputs--------------
+    guide: the optimized model
+    losses: the loss of the model during training
+    '''
+
+    #-------Construct model---------
+    model = model
+    guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
+
+    #-------Train the model---------
+    pyro.clear_param_store()
+    losses = []
+    adam = pyro.optim.Adam({"lr":lr})
+    svi = SVI(model, guide, adam, loss=Trace_ELBO())
+    for j in tqdm(range(number_of_steps)):
+        # calculate the loss and take a gradient step
+        loss = svi.step(X, y, x_sigma,y_sigma,*args)
+        losses.append(loss/len(X))
+    return guide,losses
+
+
+def cal_MSE(y,yhat):
+    '''
+    A function to calculate MSE coefficient
+    '''
+    MSE = np.sum((yhat-y)**2)/len(y)
+    return MSE
+
+
+def cal_wMSE(y,yhat,y_sigma):
+    '''
+    A function to calculate weighted MSE coefficient
+    '''
+    wMSE = np.sum((yhat-y)**2/y_sigma**2)/len(y)
+    return wMSE
+    
+def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
+    '''
+    A function to define a change-point model in pyro
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    n_cp: int, number of change-points
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    # intercept_prior = dist.Uniform(-5., 5.)
+    b = pyro.sample("b", intercept_prior)
+    beta_coef_list = torch.zeros(n_cp+1)
+    cp_loc_list = torch.zeros(n_cp)
+    #Define our coefficient prior
+    cp_loc_prior = torch.linspace(X[:,0].min(),X[:,0].max(),n_cp+1)
+    gap = cp_loc_prior[1]-cp_loc_prior[0]
+    for i in range(n_cp+1):
+        # coefficient_prior = dist.Uniform(-0.01, 0.01)
+        beta_coef = pyro.sample(f"a_{i}", coefficient_prior)    
+        beta_coef_list[i] = beta_coef
+        if i<n_cp:
+            cp_prior = dist.Uniform(cp_loc_prior[i]-gap,cp_loc_prior[i+1]+gap)
+            cp_loc = pyro.sample(f"cp_{i}", cp_prior)
+            cp_loc_list[i] = cp_loc
+    # cp_loc_list,cp_sort_index = cp_loc_list.sort()
+    # beta_coef_list = beta_coef_list[cp_sort_index]
+
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+
+    mean = torch.zeros(X.shape[0])
+    last_intercept = b
+    
+    for i in range(n_cp+1):
+        if i==0:
+            start_age = X[:,0].min()
+            start_idx = 0
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+            last_change_point = start_age
+        elif i==n_cp:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(x_noisy>=start_age)[0][0]
+            end_age = X[:,0].max()
+            end_idx = X.shape[0]
+        else:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(x_noisy>=start_age)[0][0]
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+
+        mean[start_idx:end_idx] = beta_coef_list[i] * (x_noisy[start_idx:end_idx]-last_change_point) + last_intercept
+        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
+        last_change_point = end_age
         
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+def get_change_point_posterior(guide,sample_number):
+    num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
+    output_dict = dict()
+    output_dict['b'] = np.zeros(sample_number)
+    output_dict['a'] = np.zeros([sample_number,num_cp+1])
+    output_dict['cp'] = np.zeros([sample_number,num_cp])
+    test_cp = []
+    for i in range(num_cp):
+        test_cp.append(guide.median()['cp_'+str(i)].detach().numpy())
+    cp_index = np.argsort(test_cp)
+    
+    for i in range(sample_number):
+        store_beta = []
+        store_cp = []
+        posterior_samples = guide()
+        for i2 in range(num_cp+1):
+            store_beta.append(posterior_samples['a_'+str(i2)].detach().numpy())
+            if i2 < num_cp:
+                store_cp.append(posterior_samples['cp_'+str(i2)].detach().numpy())
+        output_dict['b'][i] = posterior_samples['b'].detach().numpy()
+        output_dict['a'][i] = np.array(store_beta)
+        output_dict['cp'][i] = np.array(store_cp)[cp_index]
+    return output_dict
+
+def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
+    '''
+    A function to calculate the forward model of the change-point model
+
+    ------------Inputs--------------
+    n_cp: int, number of change-points
+    cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points
+    new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction
+    data_X: 2D torch tensor with shape (n_samples,n_features) for training data
+    beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
+    b: float, the intercept coefficient
+    '''
+    last_intercept = b
+    mean = torch.zeros(new_X.shape[0])
+    for i in range(n_cp+1):
+        if i==0:
+            start_age = data_X[:,0].min()
+            start_idx = 0
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(new_X<end_age)[0][-1]+1
+            last_change_point = start_age
+        elif i==n_cp:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(new_X>=start_age)[0][0]
+            end_age = new_X[:,0].max()
+            end_idx = new_X.shape[0]
+        else:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(new_X>=start_age)[0][0]
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(new_X<end_age)[0][-1]+1
+        
+        mean[start_idx:end_idx] = beta_coef_list[i] * (new_X[start_idx:end_idx:,0]-last_change_point) + last_intercept
+        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
+        last_change_point = end_age
+    return mean
