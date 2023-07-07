@@ -1598,3 +1598,40 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
         last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
         last_change_point = end_age
     return mean
+
+def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age,alpha_prior):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    # weight_facor_list = torch.zeros(model_ensemble.shape[0])
+    # for i in range(model_ensemble.shape[0]):
+    d_factor = pyro.sample("alpha",alpha_prior)
+    weight_facor_list = pyro.sample("W",dist.Dirichlet(d_factor*torch.ones(model_ensemble.shape[0])))
+    # weight_facor_list[i] = weight_factor
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+    #interpolate GIA model
+    mean = torch.zeros(len(x_noisy))
+    for i in range(model_ensemble.shape[0]):
+        GIA_model = interpolate.interp1d(model_age,model_ensemble[i])
+        x_noisy[x_noisy>X[:, 0].max()] = X[:, 0].max()
+        x_noisy[x_noisy<X[:, 0].min()] = X[:, 0].min()
+
+        #calculate mean prediction
+        
+        mean += torch.tensor(GIA_model(x_noisy)) *weight_facor_list[i] 
+    
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
