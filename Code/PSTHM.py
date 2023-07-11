@@ -1029,8 +1029,9 @@ class GPRegression_EIV(GPModel):
             ), "y needs to be a torch Tensor instead of a {}".format(type(y))
         
         super().__init__(X, y,kernel, mean_function, jitter)
-
         
+        if len(torch.tensor(xerr).shape)==0:
+            xerr = torch.ones(len(X))*xerr
         self.xerr = xerr.double()
         self = self.double() #GP in pyro should use double precision
         self.X = self.X.double()
@@ -1039,7 +1040,7 @@ class GPRegression_EIV(GPModel):
         if noise is None:
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            self.noise = self.noise.double()
+            self.noise = noise.double()
     @pyro_method
     def model(self):
         self.set_mode("model")
