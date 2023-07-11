@@ -1413,7 +1413,8 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     
     beta_coef = pyro.sample("a", coefficient_prior)
     #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
+    N = X.shape[0]
+    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
     x_noisy = X[:, 0]+x_noise
     
     #calculate mean prediction
