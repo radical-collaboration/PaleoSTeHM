@@ -246,27 +246,27 @@ def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl
 
     plot_uncertainty_boxes(data_age,data_rsl, data_age_sigma*2,data_rsl_sigma*2,ax=ax)
 
-    ax.plot(mean_rsl_age,mean_rsl,linewidth=3)
+    ax.plot(mean_rsl_age,mean_rsl,linewidth=3,label='Mean')
 
     ax.fill_between(
             mean_rsl_age,  # plot the two-sigma uncertainty about the mean
             (mean_rsl - 2.0 * rsl_sd),
             (mean_rsl + 2.0 * rsl_sd),
             color=color,
-            alpha=0.6,zorder=10)
-    
+            alpha=0.6,zorder=10,label='95% CI')
+    ax.legend(loc=0)
     ax = axes[1]
     
-    ax.plot(rsl_rate_age,mean_rate*1000,linewidth=3)
+    ax.plot(rsl_rate_age,mean_rate*1000,linewidth=3,label='Mean')
     ax.fill_between(
                 rsl_rate_age,  # plot the two-sigma uncertainty about the mean
                 (mean_rate - 2.0 * rate_sd)*1000,
                 (mean_rate + 2.0 * rate_sd)*1000,
                 color=color,
-                alpha=0.6,zorder=10)
+                alpha=0.6,zorder=10,label='95% CI')
     ax.set_xlabel('Age (CE)')
     ax.set_ylabel('RSL rate (mm/year)')
-
+    ax.legend(loc=0)
     ax = axes[2]
     f = interpolate.interp1d(mean_rsl_age,mean_rsl)
     ax.scatter(data_age,(data_rsl-f(data_age))*1000,s=150,marker='*',color=color,alpha=0.6)
