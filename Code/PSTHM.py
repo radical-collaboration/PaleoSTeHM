@@ -246,27 +246,27 @@ def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl
 
     plot_uncertainty_boxes(data_age,data_rsl, data_age_sigma*2,data_rsl_sigma*2,ax=ax)
 
-    ax.plot(mean_rsl_age,mean_rsl,linewidth=3)
+    ax.plot(mean_rsl_age,mean_rsl,linewidth=3,label='Mean')
 
     ax.fill_between(
             mean_rsl_age,  # plot the two-sigma uncertainty about the mean
             (mean_rsl - 2.0 * rsl_sd),
             (mean_rsl + 2.0 * rsl_sd),
             color=color,
-            alpha=0.6,zorder=10)
-    
+            alpha=0.6,zorder=10,label='95% CI')
+    ax.legend(loc=0)
     ax = axes[1]
     
-    ax.plot(rsl_rate_age,mean_rate*1000,linewidth=3)
+    ax.plot(rsl_rate_age,mean_rate*1000,linewidth=3,label='Mean')
     ax.fill_between(
                 rsl_rate_age,  # plot the two-sigma uncertainty about the mean
                 (mean_rate - 2.0 * rate_sd)*1000,
                 (mean_rate + 2.0 * rate_sd)*1000,
                 color=color,
-                alpha=0.6,zorder=10)
+                alpha=0.6,zorder=10,label='95% CI')
     ax.set_xlabel('Age (CE)')
     ax.set_ylabel('RSL rate (mm/year)')
-
+    ax.legend(loc=0)
     ax = axes[2]
     f = interpolate.interp1d(mean_rsl_age,mean_rsl)
     ax.scatter(data_age,(data_rsl-f(data_age))*1000,s=150,marker='*',color=color,alpha=0.6)
@@ -1029,8 +1029,9 @@ class GPRegression_EIV(GPModel):
             ), "y needs to be a torch Tensor instead of a {}".format(type(y))
         
         super().__init__(X, y,kernel, mean_function, jitter)
-
         
+        if len(torch.tensor(xerr).shape)==0:
+            xerr = torch.ones(len(X))*xerr
         self.xerr = xerr.double()
         self = self.double() #GP in pyro should use double precision
         self.X = self.X.double()
@@ -1039,7 +1040,7 @@ class GPRegression_EIV(GPModel):
         if noise is None:
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            self.noise = self.noise.double()
+            self.noise = noise.double()
     @pyro_method
     def model(self):
         self.set_mode("model")
@@ -1413,7 +1414,8 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     
     beta_coef = pyro.sample("a", coefficient_prior)
     #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
+    N = X.shape[0]
+    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
     x_noisy = X[:, 0]+x_noise
     
     #calculate mean prediction
