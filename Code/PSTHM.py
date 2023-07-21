@@ -740,12 +740,24 @@ def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
         loss.backward()
         optimizer.step()
         gpr.set_mode("guide")
-        track_list.append([loss.item(), *list(i2.item() for i2 in pyro.get_param_store().values())])
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
     
     #generate columns names for the track list
     col_name = ['loss' ]
+
     for i in (dict(pyro.get_param_store()).keys()):
-        col_name.append(i[7:].replace('_map',''))
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
     #convert the track list to a dataframe
     track_list=pd.DataFrame(track_list,columns=col_name)
 
@@ -804,12 +816,24 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100
         loss.backward()
         optimizer.step()
         gpr.set_mode("guide")
-        track_list.append([loss.item(), *list(i2.item() for i2 in pyro.get_param_store().values())])
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
     
     #generate columns names for the track list
     col_name = ['loss' ]
+
     for i in (dict(pyro.get_param_store()).keys()):
-        col_name.append(i[7:].replace('_map',''))
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
     #convert the track list to a dataframe
     track_list=pd.DataFrame(track_list,columns=col_name)
 
@@ -1084,7 +1108,12 @@ class GPRegression_EIV(GPModel):
         self.set_mode("model")
         N = self.X.size(0)
         x_noise = pyro.sample('obs',dist.Normal(torch.zeros(N),self.xerr**0.5).to_event(1))
-        X_noisy = (self.X+x_noise)
+        if self.X.dim()==0:
+            X_noisy = (self.X+x_noise)
+        else:
+            X_noisy = self.X
+            X_noisy[:,0] += x_noise
+        
         Kff = self.kernel(X_noisy)
         Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
@@ -1639,7 +1668,7 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
         last_change_point = end_age
     return mean
 
-def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age,alpha_prior):
+def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     '''
     A function to define a linear model in pyro 
 
@@ -1648,15 +1677,12 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age,alpha_prior
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
     y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    intercept_prior: pyro distribution for the intercept coefficient
-    coefficient_prior: pyro distribution for the slope coefficient
 
     '''
     # Define our intercept prior
     # weight_facor_list = torch.zeros(model_ensemble.shape[0])
     # for i in range(model_ensemble.shape[0]):
-    d_factor = pyro.sample("alpha",alpha_prior)
-    weight_facor_list = pyro.sample("W",dist.Dirichlet(d_factor*torch.ones(model_ensemble.shape[0])))
+    weight_facor_list = pyro.sample("W",dist.Dirichlet(torch.ones(model_ensemble.shape[0])))
     # weight_facor_list[i] = weight_factor
     #generate random error for age
     x_noise = torch.normal(0, x_sigma)
@@ -1675,3 +1701,28 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age,alpha_prior
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+class GIA_ensemble(Kernel):
+    '''
+    This is a class to define a GIA ensemble model as the mean function for GP
+
+    ------------Inputs--------------
+    GIA_model_num: int, number of GIA models in the ensemble
+    GIA_model_interp: a list of interpolation function that can 3D interpolate the 
+    RSL history predicted by a GIA model
+
+    ------------Outputs--------------
+    mean: the prediction of the GIA ensemble model
+    '''
+    def __init__(self,GIA_model_num,GIA_model_interp,input_dim=1):
+        super().__init__(input_dim)
+        self.GIA_model_interp = GIA_model_interp
+        self.GIA_model_num =GIA_model_num
+        self.s = PyroParam(torch.tensor(1.0))
+        self.w = PyroParam(torch.ones(GIA_model_num))
+        
+    def forward(self, X):
+        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
+        for i in range(self.GIA_model_num):
+            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
+        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)

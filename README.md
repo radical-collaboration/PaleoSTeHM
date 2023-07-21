@@ -32,7 +32,9 @@ These tutorials were built upon PaleoSTeHM API, the source code of which can be 
   - **[Holocene sea-level analysis in New Jersey and Northern North Carolina](Tutorials/2.Temporal_GP/7.NJ_NNC_RSL.ipynb)**  - This tutorial will use the contents covered above in order to replicate Gaussian Process modelling results in New Jersey and Northern North Carolina as in [Ashe et al., 2019](https://www.sciencedirect.com/science/article/abs/pii/S0277379118302130).
 ### Spatio-temporal Gaussian Process 
  - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.ST_GP.ipynb)** - Background of building a Sptio-temporal Gaussian Process model.
- - **[Spatio-temporal Gaussian Process with multiple kernels (under development)](Tutorials/3.ST_GP/9. STGP_kernels.ipynb)** - Spatio-temporal Gaussian Process with multiple kernels with instructions on kernel decomposition. 
+ - **[Spatio-temporal Gaussian Process with multiple kernels](Tutorials/3.ST_GP/9.STGP_kernels.ipynb)** - Spatio-temporal Gaussian Process with multiple kernels with instructions on kernel decomposition. 
+ - **[Spatio-temporal Gassusian Process (STGP) with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details
