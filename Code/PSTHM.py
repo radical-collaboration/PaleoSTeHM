@@ -202,7 +202,7 @@ def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
 
     return ax
 
-def plot_tem_regreesion(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl_age,mean_rsl,
+def plot_tem_regression(data_age,data_rsl,data_age_sigma,data_rsl_sigma,mean_rsl_age,mean_rsl,
                         rsl_sd,rsl_rate_age,mean_rate,rate_sd,color='C0',axes=None,save=False):
     '''
     A function to create matplotlib plot for temporal regression results.
@@ -1491,7 +1491,7 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
-def opti_pyro_mdoel(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
+def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
     '''
     A function to optimize the pyro model
 
@@ -1726,3 +1726,4 @@ class GIA_ensemble(Kernel):
         for i in range(self.GIA_model_num):
             pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
         return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
+    
