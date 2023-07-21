@@ -33,7 +33,7 @@ PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0.
 ### Spatio-temporal Gaussian Process 
  - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.ST_GP.ipynb)** - Background of building a Sptio-temporal Gaussian Process model.
  - **[Spatio-temporal Gaussian Process with multiple kernels](Tutorials/3.ST_GP/9.STGP_kernels.ipynb)** - Spatio-temporal Gaussian Process with multiple kernels with instructions on kernel decomposition. 
- - **[Spatio-temporal Gassusian Process (STGP) with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models.
+ - **[Spatio-temporal Gassusian Process with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models.
 
 ## License
 
