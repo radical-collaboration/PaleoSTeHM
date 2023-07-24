@@ -1459,7 +1459,7 @@ class Matern52(Isotropy):
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
-
+        
 #THis model can be implemented within a class
 def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     '''
@@ -1707,19 +1707,18 @@ class GIA_ensemble(Kernel):
     This is a class to define a GIA ensemble model as the mean function for GP
 
     ------------Inputs--------------
-    GIA_model_num: int, number of GIA models in the ensemble
     GIA_model_interp: a list of interpolation function that can 3D interpolate the 
     RSL history predicted by a GIA model
 
     ------------Outputs--------------
     mean: the prediction of the GIA ensemble model
     '''
-    def __init__(self,GIA_model_num,GIA_model_interp,input_dim=1):
+    def __init__(self,GIA_model_interp,input_dim=1):
         super().__init__(input_dim)
         self.GIA_model_interp = GIA_model_interp
-        self.GIA_model_num =GIA_model_num
+        self.GIA_model_num =len(GIA_model_interp)
         self.s = PyroParam(torch.tensor(1.0))
-        self.w = PyroParam(torch.ones(GIA_model_num))
+        self.w = PyroParam(torch.ones(self.GIA_model_num))
         
     def forward(self, X):
         pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
