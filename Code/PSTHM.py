@@ -23,12 +23,10 @@ from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.infer import MCMC, NUTS, Predictive
-import cartopy
-import cartopy.crs as ccrs
+
 
 import matplotlib.path as mpath
 import matplotlib.gridspec as gridspec
-import cartopy.feature as cfeature
 
 font = {'weight':'normal',
        'size':20}
@@ -296,7 +294,10 @@ def plot_spatial_rsl_single(pred_matrix,y_mean,y_var,cmap='viridis',save_fig=Fal
     ------Outputs------
     A figure with two subplots, the left subplot is the RSL map, the right subplot is the RSL uncertainty map
     '''
-    
+    import cartopy
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
     if torch.is_tensor(pred_matrix):
         pred_matrix =pred_matrix.detach().numpy()
     lat_matrix = np.unique(pred_matrix[:,1])
@@ -343,6 +344,10 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     A figure with three subplots, the left subplot is the mean RSL map, the middle subplot is the RSL change rate map, 
     the right subplot is the RSL uncertainty map
     '''
+    import cartopy
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    
     if torch.is_tensor(pred_matrix):
         pred_matrix =pred_matrix.detach().numpy()
     time_mat = np.unique(pred_matrix[:,0])
