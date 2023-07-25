@@ -4,3 +4,4 @@ pandas
 pyro_ppl==1.8.4
 scipy
 torch==1.11.0
+seaborn
