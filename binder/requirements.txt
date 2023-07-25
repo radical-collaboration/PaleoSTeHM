@@ -1,7 +1,6 @@
-matplotlib==3.4.3
-numpy==1.20.3
-pandas==1.3.4
+matplotlib
+numpy
+pandas
 pyro_ppl==1.8.4
-scipy==1.7.2
-seaborn==0.11.2
+scipy
 torch==1.11.0
