@@ -1,3 +1,5 @@
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/Development?labpath=binder%2FPaleoSTeHM_examples.ipynb)
+
 # PaleoSTeHM - A modern, scalable Spatio-Temporal Hierarchical Modeling framework for paleo-environmental data
 By [Rutgers Earth System Science & Policy Lab](https://earthscipol.net/)
 
