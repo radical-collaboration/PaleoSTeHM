@@ -9,3 +9,6 @@ tqdm==4.62.3
 nmmn==1.2.1
 seaborn==0.11.2
 statsmodels==0.12.2
+jupyter==1.0.0
+ipywidgets==8.0.7
+
