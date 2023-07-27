@@ -11,8 +11,19 @@ Please note that this repository is under active developmennt by Yucheng Lin, Al
 
 ## Installation
 
+1. Clone the PaleoSTeHM repository.
+
 ```
 git clone https://github.com/radical-collaboration/PaleoSTeHM.git
+```
+
+2. Create and activate a Python virtual environment, and install PaleoSTeHM's Python 
+dependencies in it. Using `venv`:
+
+```
+python -m venv ve3PaleoSTeHM
+. ve3PaleoSTeHM/bin/activate
+pip install --upgrade setuptools pip wheel
 cd PaleoSTeHM/
 pip install -r requirements.txt
 ```
