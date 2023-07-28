@@ -28,6 +28,12 @@ cd PaleoSTeHM/
 pip install -r requirements.txt
 ```
 
+3. Load Jupyter Lab in the Tutorials directory.
+
+```
+jupyter-lab --notebook-dir=Tutorials/
+```
+
 PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0. 
 
 ## Tutorial Contents
