@@ -31,7 +31,7 @@ pip install -r requirements.txt
 3. Add the virtual environment as a Jupyter kernel.
 
 ```
-python3 -m ipykernel install --name paleostehm
+python3 -m ipykernel install --user --name paleostehm
 ```
 
 4. Load Jupyter Lab and navigate to the tutorial of interest. Be sure to use
