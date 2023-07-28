@@ -34,7 +34,7 @@ pip install -r requirements.txt
 python3 -m ipykernel install --name paleostehm
 ```
 
-3. Load Jupyter Lab and navigate to the tutorial of interest. Be sure to use
+4. Load Jupyter Lab and navigate to the tutorial of interest. Be sure to use
 the `paleostehm` kernel.
 
 ```
