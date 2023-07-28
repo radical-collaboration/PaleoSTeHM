@@ -28,10 +28,17 @@ cd PaleoSTeHM/
 pip install -r requirements.txt
 ```
 
-3. Load Jupyter Lab in the Tutorials directory.
+3. Add the virtual environment as a Jupyter kernel.
 
 ```
-jupyter-lab --notebook-dir=Tutorials/
+python3 -m ipykernel install --name paleostehm
+```
+
+3. Load Jupyter Lab and navigate to the tutorial of interest. Be sure to use
+the `paleostehm` kernel.
+
+```
+jupyter-lab
 ```
 
 PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0. 
