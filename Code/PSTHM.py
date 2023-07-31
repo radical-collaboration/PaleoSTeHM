@@ -1113,7 +1113,7 @@ class GPRegression_EIV(GPModel):
         self.set_mode("model")
         N = self.X.size(0)
         x_noise = pyro.sample('obs',dist.Normal(torch.zeros(N),self.xerr**0.5).to_event(1))
-        if self.X.dim()==0:
+        if self.X.dim()<=1:
             X_noisy = (self.X+x_noise)
         else:
             X_noisy = self.X

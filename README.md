@@ -7,14 +7,32 @@ This repository contains the Jupyter Notebook based tutorials for PaleoSTeHM pro
 PaleoSTeHM is a paleo-environmental modelling faced API based upon [pyro](https://pyro.ai/), a universal probabilistic programming language supported by [PyTorch](https://pytorch.org/) on the backend. Therefore, it not only supports probablistic programming not also the auto-differentiation and GPU accelration. This API will provide easy-to-use models to infer the spatio or spatio-temporal variation of environmental change from geological data, with tutorials
 that cover the background theories and hand-on practicals. 
 
-Please note that this repository is under active developmennt by Yucheng Lin, Alex Reed and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
+Please note that this repository is under active developmennt by Yucheng Lin, Alex Reedy and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
 
 ## Installation
 
+1. Clone the PaleoSTeHM repository.
+
 ```
 git clone https://github.com/radical-collaboration/PaleoSTeHM.git
+```
+
+2. Create and activate a Python virtual environment, and install PaleoSTeHM's Python 
+dependencies in it. Using [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment):
+
+```
+conda create --name ve3PaleoSTeHM python=3.9
+conda activate ve3PaleoSTeHM
+pip install --upgrade setuptools pip wheel
 cd PaleoSTeHM/
 pip install -r requirements.txt
+conda install -c conda-forge cartopy
+```
+
+3. Load Jupyter Lab and navigate to the tutorial of interest.
+
+```
+jupyter-lab
 ```
 
 PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0. 
@@ -31,7 +49,7 @@ PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0.
   - **[Incorporate temporal uncertainty in Gaussian Process](Tutorials/2.Temporal_GP/6.Temporal_uncer.ipynb)**  - This tutorial introduce two commonly-used methods for Gaussian Process: noisy-input Gaussian Process and errors-in-variable Gaussian Process. 
   - **[Holocene sea-level analysis in New Jersey and Northern North Carolina](Tutorials/2.Temporal_GP/7.NJ_NNC_RSL.ipynb)**  - This tutorial will use the contents covered above in order to replicate Gaussian Process modelling results in New Jersey and Northern North Carolina as in [Ashe et al., 2019](https://www.sciencedirect.com/science/article/abs/pii/S0277379118302130).
 ### Spatio-temporal Gaussian Process 
- - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.ST_GP.ipynb)** - Background of building a Sptio-temporal Gaussian Process model.
+ - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.STGP_background.ipynb)** - Background of building a Sptio-temporal Gaussian Process model.
  - **[Spatio-temporal Gaussian Process with multiple kernels](Tutorials/3.ST_GP/9.STGP_kernels.ipynb)** - Spatio-temporal Gaussian Process with multiple kernels with instructions on kernel decomposition. 
  - **[Spatio-temporal Gassusian Process with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models.
 
