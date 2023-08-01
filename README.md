@@ -31,6 +31,7 @@ conda activate ve3PaleoSTeHM
 ```
 jupyter-lab
 ```
+
 ## Tutorial Contents
 ### Introduction
   - **[PaleoSTeHM background and data level modelling](Tutorials/1.Introduction/1.Introduction.ipynb)** - Introduction to Bayesian Hierachical modelling, which consist of data level, process level and parameter level modelling. This notebook will cover data level modelling with an illustrative example of building data level model for coral-based sea-level records from the Great Barrier Reef. 
