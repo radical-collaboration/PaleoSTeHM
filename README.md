@@ -11,7 +11,7 @@ Please note that this repository is under active developmennt by Yucheng Lin, Al
 
 ## Installation
 
-1. Clone the PaleoSTeHM repository, via either `terminal` or `Anaconda PowerShell`.
+1. Clone the PaleoSTeHM repository.
 
 ```
 git clone https://github.com/radical-collaboration/PaleoSTeHM.git
@@ -31,7 +31,6 @@ conda activate ve3PaleoSTeHM
 ```
 jupyter-lab
 ```
-
 ## Tutorial Contents
 ### Introduction
   - **[PaleoSTeHM background and data level modelling](Tutorials/1.Introduction/1.Introduction.ipynb)** - Introduction to Bayesian Hierachical modelling, which consist of data level, process level and parameter level modelling. This notebook will cover data level modelling with an illustrative example of building data level model for coral-based sea-level records from the Great Barrier Reef. 
