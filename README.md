@@ -18,30 +18,19 @@ git clone https://github.com/radical-collaboration/PaleoSTeHM.git
 ```
 
 2. Create and activate a Python virtual environment, and install PaleoSTeHM's Python 
-dependencies in it. Using `venv`:
+dependencies in it. Using [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment):
 
 ```
-python -m venv ve3PaleoSTeHM
-. ve3PaleoSTeHM/bin/activate
-pip install --upgrade setuptools pip wheel
 cd PaleoSTeHM/
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate ve3PaleoSTeHM
 ```
 
-3. Add the virtual environment as a Jupyter kernel.
-
-```
-python3 -m ipykernel install --user --name paleostehm
-```
-
-4. Load Jupyter Lab and navigate to the tutorial of interest. Be sure to use
-the `paleostehm` kernel.
+3. Load Jupyter Lab (or Jupyter Notebook) and navigate to the tutorial of interest.
 
 ```
 jupyter-lab
 ```
-
-PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0. 
 
 ## Tutorial Contents
 ### Introduction
