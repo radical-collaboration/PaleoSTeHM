@@ -11,7 +11,7 @@ Please note that this repository is under active developmennt by Yucheng Lin, Al
 
 ## Installation
 
-1. Clone the PaleoSTeHM repository.
+1. Clone the PaleoSTeHM repository, via either `terminal` or `Anaconda PowerShell`.
 
 ```
 git clone https://github.com/radical-collaboration/PaleoSTeHM.git
@@ -21,21 +21,16 @@ git clone https://github.com/radical-collaboration/PaleoSTeHM.git
 dependencies in it. Using [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment):
 
 ```
-conda create --name ve3PaleoSTeHM python=3.9
-conda activate ve3PaleoSTeHM
-pip install --upgrade setuptools pip wheel
 cd PaleoSTeHM/
-pip install -r requirements.txt
-conda install -c conda-forge cartopy
+conda env create -f environment.yml
+conda activate ve3PaleoSTeHM
 ```
 
-3. Load Jupyter Lab and navigate to the tutorial of interest.
+3. Load Jupyter Lab (or Jupyter Notebook) and navigate to the tutorial of interest.
 
 ```
 jupyter-lab
 ```
-
-PaleoSTeHM was developed under python version 3.7.3 and Jupyter Notebook 5.4.0. 
 
 ## Tutorial Contents
 ### Introduction
