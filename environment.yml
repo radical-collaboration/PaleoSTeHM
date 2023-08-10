@@ -1,8 +1,8 @@
 name: ve3PaleoSTeHM
 channels:
+  - conda-forge
   - pytorch
   - defaults
-  - conda-forge
 dependencies:
   - cartopy==0.21.0
   - matplotlib=3.4.3
