@@ -23,7 +23,7 @@ from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.infer import MCMC, NUTS, Predictive
-
+from pyro.contrib.gp.kernels.dot_product import DotProduct
 
 import matplotlib.path as mpath
 import matplotlib.gridspec as gridspec
@@ -1215,7 +1215,7 @@ class Isotropy(Kernel):
     :param torch.Tensor lengthscale: Length-scale parameter of this kernel.
     """
 
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False,sp=False):
         super().__init__(input_dim, active_dims)
 
         variance = torch.tensor(1.0) if variance is None else variance
@@ -1226,9 +1226,12 @@ class Isotropy(Kernel):
         else:
             s_lengthscale = torch.tensor(1.0) if s_lengthscale is None else s_lengthscale
             self.s_lengthscale = PyroParam(s_lengthscale, constraints.positive)
-
+        if sp == True:
+            self.lengthscale = torch.tensor(1.0) 
+            self.s_lengthscale = torch.tensor(1.0) 
+            
         self.geo= geo
-        
+        self.sp = sp
     def _square_scaled_dist(self, X, Z=None):
         """
         Returns :math:`\|\frac{X-Z}{l}\|^2`.
@@ -1332,9 +1335,6 @@ class RBF(Isotropy):
             r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
             return torch.exp(-0.5 * r2)
         
-
-
-
 class RationalQuadratic(Isotropy):
     r"""
     Implementation of RationalQuadratic kernel:
@@ -1406,7 +1406,30 @@ class Exponential(Isotropy):
             return torch.exp(-r)
         
 
+class Matern21(Isotropy):
+    r"""
+    Implementation of Matern21 kernel:
 
+        :math:`k(x, z) = \sigma^2\exp\left(- \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            return self.variance * torch.exp(-r)
+        
+        else:
+            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            return self.variance * torch.exp(-r)
+        
 
 class Matern32(Isotropy):
     r"""
@@ -1464,7 +1487,39 @@ class Matern52(Isotropy):
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+    
+class WhiteNoise(Isotropy):
+    r"""
+    Implementation of WhiteNoise kernel:
+
+        :math:`k(x, z) = \sigma^2 \delta(x, z),`
+
+    where :math:`\delta` is a Dirac delta function.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False,sp=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo,sp)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
         
+        if Z is None: Z=X
+        
+        if self.sp==True:
+            tem_delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
+            sp_delta_fun = (self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4) & torch.outer(X[:,2]<360,Z[:,2]<360)
+
+            return self.variance * (tem_delta_fun * sp_delta_fun).double()
+        
+        if self.geo==True:
+            delta_fun = self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4
+            return self.variance * delta_fun.double()
+        
+        if self.geo==False:
+            delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
+            return self.variance * delta_fun.double()
+
 #THis model can be implemented within a class
 def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     '''
