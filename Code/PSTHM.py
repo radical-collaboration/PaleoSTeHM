@@ -1428,7 +1428,7 @@ class Matern21(Isotropy):
         
         else:
             r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
-            return self.variance * torch.exp(-r)
+            return torch.exp(-r)
         
 
 class Matern32(Isotropy):
