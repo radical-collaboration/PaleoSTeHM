@@ -1333,7 +1333,10 @@ class RBF(Isotropy):
             return self.variance * torch.exp(-0.5 * r2)
         else:
             r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
-            return torch.exp(-0.5 * r2)
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return torch.exp(-0.5 * r2)*dis_fun
         
 class RationalQuadratic(Isotropy):
     r"""
@@ -1403,7 +1406,10 @@ class Exponential(Isotropy):
             return self.variance * torch.exp(-r)
         else:
             r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
-            return torch.exp(-r)
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return torch.exp(-r) * dis_fun
         
 
 class Matern21(Isotropy):
@@ -1428,7 +1434,10 @@ class Matern21(Isotropy):
         
         else:
             r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
-            return torch.exp(-r)
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            
+            return torch.exp(-r)*dis_fun
         
 
 class Matern32(Isotropy):
@@ -1455,7 +1464,10 @@ class Matern32(Isotropy):
         else:
             r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
             sqrt3_r = 3**0.5 * r
-            return (1 + sqrt3_r) * torch.exp(-sqrt3_r)
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return (1 + sqrt3_r) * torch.exp(-sqrt3_r) * dis_fun
         
 
 
@@ -1486,7 +1498,10 @@ class Matern52(Isotropy):
             r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
-            return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r) * dis_fun
     
 class WhiteNoise(Isotropy):
     r"""
@@ -1514,7 +1529,10 @@ class WhiteNoise(Isotropy):
         
         if self.geo==True:
             delta_fun = self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4
-            return self.variance * delta_fun.double()
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return self.variance * delta_fun.double() * dis_fun
         
         if self.geo==False:
             delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
