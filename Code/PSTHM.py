@@ -33,147 +33,7 @@ font = {'weight':'normal',
 
 matplotlib.rc('font',**font)
 
-def load_local_rsl_data(file):
-    '''
-    A function to load rsl data from a csv file, this csv 
-    file should be presented in the same format as NJ_CC.csv in data folder
-
-    ---------Inputs---------
-    file: str, the path to the csv file
-
-    ---------Outputs---------
-    X: torch.tensor, the age of rsl data
-    y: torch.tensor, the rsl data
-    y_sigma: torch.tensor, one sigma uncertainty of rsl data
-    x_sigma: torch.tensor, one uncertainty of age data
-    '''
-
-    #load data
-    data = pd.read_csv(file)
-    rsl = data['RSL']
-    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
-    rsl_age = -(data['Age']-1950) #convert age from BP to CE
-    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
-    rsl_lon = data['Longitude']
-    rsl_lat = data['Latitude']
-
-    #convert RSL data into tonsors
-    X = torch.tensor(rsl_age).flatten() #standardise age
-    y = torch.tensor(rsl).flatten()
-    y_sigma = torch.tensor(rsl_2sd/2).flatten()
-    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
-
-    return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
-
-def load_regional_rsl_data(file):
-    '''
-    A function to load rsl data from a csv file, this csv 
-    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
-
-    ---------Inputs---------
-    file: str, the path to the csv file
-
-    ---------Outputs---------
-    marine_limiting: a list containing marine limiting data (details below)
-    SLIP: a list containing sea-level index point data
-    terrestrial limiting: a list containing terrestrial limiting data
-
-    data within each list:
-    X: torch.tensor, the age of rsl data
-    y: torch.tensor, the rsl data
-    y_sigma: torch.tensor, one sigma uncertainty of rsl data
-    x_sigma: torch.tensor, one uncertainty of age data
-    lon: numpy.array, 
-    rsl_region: a number indicating the region where data locates at
-    '''
-
-    #load data
-    data = pd.read_csv(file)
-    rsl = data['RSL']
-    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
-    rsl_age = -(data['Age']-1950) #convert age from BP to CE
-    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
-    rsl_lon = data['Longitude']
-    rsl_lat = data['Latitude']
-    rsl_region = data['Region.1']
-    rsl_limiting = data['Limiting']
-    marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
-
-    #convert RSL data into tonsors
-    X = torch.tensor(rsl_age).flatten() #standardise age
-    y = torch.tensor(rsl).flatten()
-    y_sigma = torch.tensor(rsl_2sd/2).flatten()
-    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
-    
-    marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
-                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
-
-    SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
-                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
-
-    marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
-                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
-
-    return marine_limiting, SLIP, marine_limiting
-
-
-def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
-    '''
-    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.
-    We have filtered out data with -99999 value, missing data (with 'Y' indicated) or any flagged data (i.e., the fourth column is not 0).
-    ---------Inputs---------
-    data_folder: str, the path to the data folder
-    min_lat: float, the minimum latitude of the region of interest
-    max_lat: float, the maximum latitude of the region of interest
-    min_lon: float, the minimum longitude of the region of interest
-    max_lon: float, the maximum longitude of the region of interest
-
-    ---------Outputs---------
-    US_AT_data: a list containing US Atlantic coast data 
-    '''
-    if data_folder[-1]!='/':
-        data_folder = data_folder+'/'
-    if len(os.listdir(data_folder))<5:
-        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
-            zip_ref.extractall(data_folder)
-    site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
-    US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
-    US_AT_site = site_file.iloc[:,0][US_AT_index].values
-    US_AT_lat = site_file.iloc[:,1][US_AT_index].values
-    US_AT_lon = site_file.iloc[:,2][US_AT_index].values
-
-    #generate US Atlantic coast data
-    US_AT_data = None
-    for i,p in enumerate(US_AT_site):
-        if US_AT_data is None:
-            US_AT_data = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
-            US_AT_data[4] = US_AT_lat[i]
-            US_AT_data[5] = US_AT_lon[i]
-        else:
-            tmp = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
-            tmp[4] = US_AT_lat[i]
-            tmp[5] = US_AT_lon[i]
-            US_AT_data = pd.concat([US_AT_data,tmp],ignore_index=True)
-    
-    data_filter = US_AT_data.iloc[:,1]!=-99999
-    data_filter_2 = US_AT_data.iloc[:,2]=='N'
-    data_filter_3 = US_AT_data.iloc[:,3]==0
-    US_site_coord = np.unique(US_AT_data.iloc[:,4:],axis=0)
-    data_filter_4 = np.zeros(len(data_filter_3),dtype=bool)
-    data_filter_5 = np.zeros(len(data_filter_3),dtype=bool)
-    new_rsl = np.zeros(len(data_filter_3))
-    for i in range(len(US_site_coord)):
-        site_index = np.sum(US_AT_data.iloc[:,4:],axis=1) == np.sum(US_site_coord[i])
-        if np.max(US_AT_data[site_index].iloc[:,0])-np.min(US_AT_data[site_index].iloc[:,0])>=min_time_span:
-            data_filter_4[site_index] = True
-        if np.max(US_AT_data[site_index].iloc[:,0])>=latest_age:
-            data_filter_5[site_index] = True
-        new_rsl[site_index] = US_AT_data[site_index].iloc[:,1]- US_AT_data[site_index].iloc[-1,1]
-    US_AT_data.iloc[:,1] = new_rsl
-    data_filter_all = data_filter & data_filter_2 & data_filter_3 & data_filter_4 & data_filter_5
-    US_AT_data = US_AT_data[data_filter_all]
-    
-    return US_AT_data
+#--------------------------------------1. Plotting Module-----------------------------------------------
 
 def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     '''
@@ -427,55 +287,183 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     if save_fig: 
         plt.savefig('RSL_map_{}_{}.png'.format(min_time,max_time),dpi=300,bbox_inches='tight')
     
-def gen_pred_matrix(age,lat,lon):
+
+def plot_track_list(track_list):
     '''
-    A function to generate an input matrix for Spatio-temporal GP model
-
-    ----------Inputs----------------
-    age: a numpy array, age of the prediction points
-    lat: a numpy array, latitude of the prediction points
-    lon: a numpy array, longitude of the prediction points
-
-    ----------Outputs----------------
-    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model
+    A function to plot the track_list generated from SVI_optm function
     '''
-    age = np.array(age)
-    lat = np.array(lat)
-    lon = np.array(lon)
-
-    lon_matrix,lat_matrix,age_matrix = np.meshgrid(lon,lat,age)
     
-    output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
-    return output_matrix
+    if track_list.shape[1]%3==0:
+        row_num = (track_list.shape[1])//3
+    else:
+        row_num = track_list.shape[1]//3+1
 
-def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
-    N = len(gpr.X)
-    M = pred_matrix.size(0)
-    f_loc = gpr.y - gpr.mean_function(gpr.X)
-    latent_shape = f_loc.shape[:-1]
-    loc_shape = latent_shape + (M,)
-    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
-    f_loc_2D = f_loc.reshape(N, -1)
-    loc_shape = latent_shape + (M,)
-    v_2D = f_loc_2D
-    Kff = gpr.kernel(gpr.X).contiguous()
-    Kff.view(-1)[:: N + 1] += gpr.jitter + gpr.noise  # add noise to the diagonal
-    Lff = torch.linalg.cholesky(Kff)
+    fig,axes = plt.subplots(row_num,3,figsize=(30,row_num*8))
+
+    if row_num==1:
+        for i in range(row_num*3):
+            axes[i].plot(np.arange(len(track_list)),track_list.iloc[:,i])
+            axes[i].set_title('{} : {:6.6f}'.format(track_list.columns[i]
+                                                    ,track_list.iloc[-1,i]))
     
-    output = []
-    for kernel in kernels:
-        Kfs = kernel(gpr.X, pred_matrix)
-        pack = torch.cat((f_loc_2D, Kfs), dim=1)
-        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
-        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
-        Qss = W.matmul(W.t())
-        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
-        loc = W.matmul(v_2D).t().reshape(loc_shape)
-        Kss = kernel(pred_matrix)
-        cov = Kss - Qss
-        output.append((loc, cov))
-        
-    return output
+    else:
+        for i in range(row_num):
+            for j in range(3):
+                if i*3+j < track_list.shape[1]:
+                    axes[i,j].plot(np.arange(len(track_list)),track_list.iloc[:,i*3+j])
+                    axes[i,j].set_title('{}: {:6.6f}'.format(track_list.columns[i*3+j],
+                                                            track_list.iloc[-1,i*3+j]))
+                else:
+                    axes[i,j].set_visible(False)
+
+    return axes
+
+#--------------------------------------2. Data Loading Module-----------------------------------------------
+
+
+def load_local_rsl_data(file):
+    '''
+    A function to load rsl data from a csv file, this csv 
+    file should be presented in the same format as NJ_CC.csv in data folder
+
+    ---------Inputs---------
+    file: str, the path to the csv file
+
+    ---------Outputs---------
+    X: torch.tensor, the age of rsl data
+    y: torch.tensor, the rsl data
+    y_sigma: torch.tensor, one sigma uncertainty of rsl data
+    x_sigma: torch.tensor, one uncertainty of age data
+    '''
+
+    #load data
+    data = pd.read_csv(file)
+    rsl = data['RSL']
+    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
+    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
+    rsl_lon = data['Longitude']
+    rsl_lat = data['Latitude']
+
+    #convert RSL data into tonsors
+    X = torch.tensor(rsl_age).flatten() #standardise age
+    y = torch.tensor(rsl).flatten()
+    y_sigma = torch.tensor(rsl_2sd/2).flatten()
+    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
+
+    return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
+
+def load_regional_rsl_data(file):
+    '''
+    A function to load rsl data from a csv file, this csv 
+    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
+
+    ---------Inputs---------
+    file: str, the path to the csv file
+
+    ---------Outputs---------
+    marine_limiting: a list containing marine limiting data (details below)
+    SLIP: a list containing sea-level index point data
+    terrestrial limiting: a list containing terrestrial limiting data
+
+    data within each list:
+    X: torch.tensor, the age of rsl data
+    y: torch.tensor, the rsl data
+    y_sigma: torch.tensor, one sigma uncertainty of rsl data
+    x_sigma: torch.tensor, one uncertainty of age data
+    lon: numpy.array, 
+    rsl_region: a number indicating the region where data locates at
+    '''
+
+    #load data
+    data = pd.read_csv(file)
+    rsl = data['RSL']
+    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
+    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
+    rsl_lon = data['Longitude']
+    rsl_lat = data['Latitude']
+    rsl_region = data['Region.1']
+    rsl_limiting = data['Limiting']
+    marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
+
+    #convert RSL data into tonsors
+    X = torch.tensor(rsl_age).flatten() #standardise age
+    y = torch.tensor(rsl).flatten()
+    y_sigma = torch.tensor(rsl_2sd/2).flatten()
+    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
+    
+    marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
+                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
+
+    SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
+                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
+
+    marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
+                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
+
+    return marine_limiting, SLIP, marine_limiting
+
+
+def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
+    '''
+    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.
+    We have filtered out data with -99999 value, missing data (with 'Y' indicated) or any flagged data (i.e., the fourth column is not 0).
+    ---------Inputs---------
+    data_folder: str, the path to the data folder
+    min_lat: float, the minimum latitude of the region of interest
+    max_lat: float, the maximum latitude of the region of interest
+    min_lon: float, the minimum longitude of the region of interest
+    max_lon: float, the maximum longitude of the region of interest
+
+    ---------Outputs---------
+    US_AT_data: a list containing US Atlantic coast data 
+    '''
+    if data_folder[-1]!='/':
+        data_folder = data_folder+'/'
+    if len(os.listdir(data_folder))<5:
+        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
+            zip_ref.extractall(data_folder)
+    site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
+    US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
+    US_AT_site = site_file.iloc[:,0][US_AT_index].values
+    US_AT_lat = site_file.iloc[:,1][US_AT_index].values
+    US_AT_lon = site_file.iloc[:,2][US_AT_index].values
+
+    #generate US Atlantic coast data
+    US_AT_data = None
+    for i,p in enumerate(US_AT_site):
+        if US_AT_data is None:
+            US_AT_data = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            US_AT_data[4] = US_AT_lat[i]
+            US_AT_data[5] = US_AT_lon[i]
+        else:
+            tmp = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            tmp[4] = US_AT_lat[i]
+            tmp[5] = US_AT_lon[i]
+            US_AT_data = pd.concat([US_AT_data,tmp],ignore_index=True)
+    
+    data_filter = US_AT_data.iloc[:,1]!=-99999
+    data_filter_2 = US_AT_data.iloc[:,2]=='N'
+    data_filter_3 = US_AT_data.iloc[:,3]==0
+    US_site_coord = np.unique(US_AT_data.iloc[:,4:],axis=0)
+    data_filter_4 = np.zeros(len(data_filter_3),dtype=bool)
+    data_filter_5 = np.zeros(len(data_filter_3),dtype=bool)
+    new_rsl = np.zeros(len(data_filter_3))
+    for i in range(len(US_site_coord)):
+        site_index = np.sum(US_AT_data.iloc[:,4:],axis=1) == np.sum(US_site_coord[i])
+        if np.max(US_AT_data[site_index].iloc[:,0])-np.min(US_AT_data[site_index].iloc[:,0])>=min_time_span:
+            data_filter_4[site_index] = True
+        if np.max(US_AT_data[site_index].iloc[:,0])>=latest_age:
+            data_filter_5[site_index] = True
+        new_rsl[site_index] = US_AT_data[site_index].iloc[:,1]- US_AT_data[site_index].iloc[-1,1]
+    US_AT_data.iloc[:,1] = new_rsl
+    data_filter_all = data_filter & data_filter_2 & data_filter_3 & data_filter_4 & data_filter_5
+    US_AT_data = US_AT_data[data_filter_all]
+    
+    return US_AT_data
+
+#--------------------------------------3. Modelling Choice module-----------------------------------------------
 
 class GPRegression_V(GPModel):
     r"""
@@ -548,16 +536,23 @@ class GPRegression_V(GPModel):
             noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            self.noise = noise.double()
+            if  noise.dim() ==1:
+                noise_store = torch.zeros(len(self.X),len(self.X))
+                noise_store.view(-1)[:: len(self.X) + 1] += noise 
+                self.noise = noise_store.double()
+            elif noise.dim() ==2:
+                self.noise = noise.double()
+                
     @pyro_method
     def model(self):
         self.set_mode("model")
 
         N = self.X.size(0)
         Kff = self.kernel(self.X)
-#         print(self.noise.abs() )
+        Kff = Kff + self.noise
+        Kff.view(-1)[:: N + 1] += self.jitter 
+#         Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
 
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         zero_loc = self.X.new_zeros(self.X.size(0))
@@ -606,7 +601,9 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
+        Kff = Kff + self.noise
+        Kff.view(-1)[:: N + 1] += self.jitter 
+        # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         y_residual = self.y - self.mean_function(self.X)
@@ -707,331 +704,6 @@ class GPRegression_V(GPModel):
 
         return lambda xnew: sample_next(xnew, outside_vars)
 
-
-def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
-    '''
-    A funciton to optimize the hyperparameters of a GP model using SVI
-
-    ---------Inputs-----------
-    gpr: a GP model defined by pyro GPR regression
-    num_iteration: number of iterations for the optimization
-    lr: learning rate for the optimization
-    decay_r: decay rate for the learning rate
-    step_size: step size for the learning rate to decay. 
-    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
-
-    ---------Outputs-----------
-    gpr: a GP model with optimized hyperparameters
-    track: a dictionary of loss
-    '''
-    
-    #clear the param store
-    pyro.clear_param_store()
-    #convert the model to double precision
-    gpr = gpr.double()
-    #define the optimiser
-    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
-
-    #define the loss function
-    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-    #do the optimisation
-    track_list = []
-
-    for i in tqdm(range(num_iteration)):
-        scheduler.step()
-        optimizer.zero_grad()
-        loss = loss_fn(gpr.model, gpr.guide)
-        loss.backward()
-        optimizer.step()
-        gpr.set_mode("guide")
-        tem_para =  []
-        for i2 in pyro.get_param_store().values():
-            if i2.numel()==1:
-                tem_para.append(i2.item())
-            else:
-                for i3 in i2:
-                    tem_para.append(i3.item())
-        track_list.append([loss.item(),*tem_para])
-    
-    #generate columns names for the track list
-    col_name = ['loss' ]
-
-    for i in (dict(pyro.get_param_store()).keys()):
-        if pyro.get_param_store()[i].numel() ==1:
-            col_name.append(i[7:].replace('_map',''))
-        else:
-            for i2 in range(pyro.get_param_store()[i].numel()):
-                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
-    #convert the track list to a dataframe
-    track_list=pd.DataFrame(track_list,columns=col_name)
-
-    return gpr,track_list
-
-
-def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100,gpu=False):
-    '''
-    A funciton to optimize the hyperparameters of a GP model using SVI
-
-    ---------Inputs-----------
-    gpr: a GP model defined by pyro GPR regression
-    x_sigma: one sigma uncertainty for input data
-    num_iteration: number of iterations for the optimization
-    lr: learning rate for the optimization
-    step_size: step size for the learning rate to decay. 
-    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
-    gpu: whether use gpu to accelerate training 
-    ---------Outputs-----------
-    gpr: a GP model with optimized hyperparameters
-    track: a dictionary of loss
-    '''
-    
-    #clear the param store
-    pyro.clear_param_store()
-    #convert the model to double precision
-    gpr = gpr.double()
-    #define the optimiser
-    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
-    #define the learning rate scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
-    #define the loss function
-    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-    #do the optimisation
-    track_list = []
-    y_sigma = gpr.noise**0.5
-    for i in tqdm(range(num_iteration)):
-        #update vertical noise based on gradient
-        if gpu:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
-        else:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
-        y_mean, _ = gpr(x_test.double(), full_cov=False)
-        y_mean.sum().backward(retain_graph=True)
-        if gpu:
-            y_rate = x_test.grad.cuda()
-        else:
-            y_rate = x_test.grad
-        if y_rate.ndim>1: y_rate = y_rate[:,0]
-        new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
-        gpr.noise = torch.tensor(new_sigma**2)
-
-        scheduler.step()
-        optimizer.zero_grad()
-        loss = loss_fn(gpr.model, gpr.guide)
-        loss.backward()
-        optimizer.step()
-        gpr.set_mode("guide")
-        tem_para =  []
-        for i2 in pyro.get_param_store().values():
-            if i2.numel()==1:
-                tem_para.append(i2.item())
-            else:
-                for i3 in i2:
-                    tem_para.append(i3.item())
-        track_list.append([loss.item(),*tem_para])
-    
-    #generate columns names for the track list
-    col_name = ['loss' ]
-
-    for i in (dict(pyro.get_param_store()).keys()):
-        if pyro.get_param_store()[i].numel() ==1:
-            col_name.append(i[7:].replace('_map',''))
-        else:
-            for i2 in range(pyro.get_param_store()[i].numel()):
-                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
-    #convert the track list to a dataframe
-    track_list=pd.DataFrame(track_list,columns=col_name)
-
-    return gpr,track_list
-
-def plot_track_list(track_list):
-    '''
-    A function to plot the track_list generated from SVI_optm function
-    '''
-    
-    if track_list.shape[1]%3==0:
-        row_num = (track_list.shape[1])//3
-    else:
-        row_num = track_list.shape[1]//3+1
-
-    fig,axes = plt.subplots(row_num,3,figsize=(30,row_num*8))
-
-    if row_num==1:
-        for i in range(row_num*3):
-            axes[i].plot(np.arange(len(track_list)),track_list.iloc[:,i])
-            axes[i].set_title('{} : {:6.6f}'.format(track_list.columns[i]
-                                                    ,track_list.iloc[-1,i]))
-    
-    else:
-        for i in range(row_num):
-            for j in range(3):
-                if i*3+j < track_list.shape[1]:
-                    axes[i,j].plot(np.arange(len(track_list)),track_list.iloc[:,i*3+j])
-                    axes[i,j].set_title('{}: {:6.6f}'.format(track_list.columns[i*3+j],
-                                                            track_list.iloc[-1,i*3+j]))
-                else:
-                    axes[i,j].set_visible(False)
-
-    return axes
-
-def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
-    '''
-    A function to run NUTS MCMC for GP regression model
-
-    ----------Inputs---------
-    gpr: a pyro GP regression model
-    num_samples: number of samples to draw from the posterior
-    warmup_steps: number of warmup steps for NUTS
-    target_accept_prob: target acceptance probability for NUTS
-    print_stats: whether to print the states of the model
-
-    ----------Outputs---------
-    mcmc: a pyro MCMC object
-    
-    '''
-    hmc_kernel = NUTS(gpr.model,target_accept_prob=target_accept_prob)
-    mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
-    mcmc.run()
-    if print_stats:
-        for name, value in mcmc.get_samples().items():
-            if 'kernel' in name:
-                
-                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
-                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
-                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
-
-    return mcmc
-
-def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
-    '''
-    A function to prediction posterior mean and covariance of GP regression model
-
-    ----------Inputs----------
-    input_gpr: a pyro GP regression model
-    mcmc: a pyro MCMC object
-    Xnew: a torch tensor of new input data
-
-    ----------Outputs----------
-    full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
-    full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
-    full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model
-    '''
-    
-    def predictive(X_new,gpr):
-        y_loc, y_cov = gpr(X_new,full_cov=True)
-        pyro.sample("y", dist.Delta(y_loc))
-        pyro.sample("y_cov", dist.Delta(y_cov))
-        
-    Xnew = torch.tensor(Xnew).double()
-    thin_mcmc = mcmc.get_samples()
-    for i in thin_mcmc:
-        thin_mcmc[i] = thin_mcmc[i][::thin_index]
-
-    posterior_predictive = Predictive(predictive, thin_mcmc)
-    full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
-    full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
-    full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
-    full_bayes_std_mean = np.diag(full_bayes_cov_mean)**0.5
-    likelihood_list = []
-    noise = np.ones(len(input_gpr.X))*input_gpr.noise.detach().numpy()
-
-    for i in range(len(full_bayes_mean)):
-        f = interpolate.interp1d(Xnew,full_bayes_mean[i])
-        likelihood_list.append(cal_likelihood(input_gpr.y.detach().numpy(),
-                                              noise**0.5,
-                                              f(input_gpr.X)))
-        
-    return full_bayes_mean_mean,full_bayes_cov_mean,full_bayes_std_mean,likelihood_list
-
-def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
-    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
-    GP).
-    ------------------Inputs----------------------------
-    test_X: an array of test input values
-    cov_matrix: full covariance matrix from GP regression
-    mean_rsl: GP regression produced mean RSL prediction
-    difftimestep: time period for averaging 
-    
-    ------------------Outputs---------------------------
-    difftimes: time series for the outputs
-    rate: averaged sea-level change rate
-    rate_sd: averaged sea-level change rate standard deviation
-    '''
-    
-    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
-    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
-    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
-    Mdiff = Mdiff[sub, :]
-    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
-    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
-    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
-    rate = Mdiff @ mean_rsl
-    
-    return difftimes,rate, rate_sd
-
-def cal_misfit(y,y_sigma,prediction):
-    
-    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
-
-def cal_likelihood(y,y_std,pred):
-    '''A function used to calcualte log likelihood function for a given prediction.
-    This calculation only considers uncertainty in y axis. 
-    
-    ------------Inputs------------------
-    y: reconstructed rsl
-    y_std: standard deviation of reconstructed rsl
-    pred: mean predction of rsl
-    
-    ------------Outputs------------------
-    likelihood: mean likelihood of prediction fit to observation
-    '''
-    from scipy.stats import norm
-
-    log_likelihood = 1 
-    for i in range(len(y)):
-        
-        norm_dis = norm(y[i], y_std[i])
-        log_likelihood+=np.log(norm_dis.pdf(pred[i]))
-    
-    return log_likelihood
-
-def cal_geo_dist2(X,Z=None):
-        '''
-        A function to calculate the squared distance matrix between each pair of X.
-        The function takes a PyTorch tensor of X and returns a matrix
-        where matrix[i, j] represents the spatial distance between the i-th and j-th X.
-        
-        -------Inputs-------
-        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
-        R: approximate radius of earth in km
-        
-        -------Outputs-------
-        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
-        '''
-        if Z is None:
-            Z = X
-
-        # Convert coordinates to radians
-        X = torch.tensor(X)
-        Z = torch.tensor(Z)
-        X_coordinates_rad = torch.deg2rad(X)
-        Z_coordinates_rad = torch.deg2rad(Z)
-        
-        # Extract latitude and longitude tensors
-        X_latitudes_rad = X_coordinates_rad[:, 0]
-        X_longitudes_rad = X_coordinates_rad[:, 1]
-
-        Z_latitudes_rad = Z_coordinates_rad[:, 0]
-        Z_longitudes_rad = Z_coordinates_rad[:, 1]
-
-         # Calculate differences in latitude and longitude
-        dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
-        dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
-        # Apply Haversine formula
-        a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
-        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-
-        return c**2
 
 class GPRegression_EIV(GPModel):
     r"""
@@ -1191,6 +863,265 @@ class GPRegression_EIV(GPModel):
             cov = cov + self.noise.abs()
 
         return loc + self.mean_function(Xnew), cov
+
+def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
+    '''
+    A function to define a change-point model in pyro
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    n_cp: int, number of change-points
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    # intercept_prior = dist.Uniform(-5., 5.)
+    b = pyro.sample("b", intercept_prior)
+    beta_coef_list = torch.zeros(n_cp+1)
+    cp_loc_list = torch.zeros(n_cp)
+    #Define our coefficient prior
+    cp_loc_prior = torch.linspace(X[:,0].min(),X[:,0].max(),n_cp+1)
+    gap = cp_loc_prior[1]-cp_loc_prior[0]
+    for i in range(n_cp+1):
+        # coefficient_prior = dist.Uniform(-0.01, 0.01)
+        beta_coef = pyro.sample(f"a_{i}", coefficient_prior)    
+        beta_coef_list[i] = beta_coef
+        if i<n_cp:
+            cp_prior = dist.Uniform(cp_loc_prior[i]-gap,cp_loc_prior[i+1]+gap)
+            cp_loc = pyro.sample(f"cp_{i}", cp_prior)
+            cp_loc_list[i] = cp_loc
+    # cp_loc_list,cp_sort_index = cp_loc_list.sort()
+    # beta_coef_list = beta_coef_list[cp_sort_index]
+
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+
+    mean = torch.zeros(X.shape[0])
+    last_intercept = b
+    
+    for i in range(n_cp+1):
+        if i==0:
+            start_age = X[:,0].min()
+            start_idx = 0
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+            last_change_point = start_age
+        elif i==n_cp:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(x_noisy>=start_age)[0][0]
+            end_age = X[:,0].max()
+            end_idx = X.shape[0]
+        else:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(x_noisy>=start_age)[0][0]
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+
+        mean[start_idx:end_idx] = beta_coef_list[i] * (x_noisy[start_idx:end_idx]-last_change_point) + last_intercept
+        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
+        last_change_point = end_age
+        
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+def get_change_point_posterior(guide,sample_number):
+    num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
+    output_dict = dict()
+    output_dict['b'] = np.zeros(sample_number)
+    output_dict['a'] = np.zeros([sample_number,num_cp+1])
+    output_dict['cp'] = np.zeros([sample_number,num_cp])
+    test_cp = []
+    for i in range(num_cp):
+        test_cp.append(guide.median()['cp_'+str(i)].detach().numpy())
+    cp_index = np.argsort(test_cp)
+    
+    for i in range(sample_number):
+        store_beta = []
+        store_cp = []
+        posterior_samples = guide()
+        for i2 in range(num_cp+1):
+            store_beta.append(posterior_samples['a_'+str(i2)].detach().numpy())
+            if i2 < num_cp:
+                store_cp.append(posterior_samples['cp_'+str(i2)].detach().numpy())
+        output_dict['b'][i] = posterior_samples['b'].detach().numpy()
+        output_dict['a'][i] = np.array(store_beta)
+        output_dict['cp'][i] = np.array(store_cp)[cp_index]
+    return output_dict
+
+def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
+    '''
+    A function to calculate the forward model of the change-point model
+
+    ------------Inputs--------------
+    n_cp: int, number of change-points
+    cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points
+    new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction
+    data_X: 2D torch tensor with shape (n_samples,n_features) for training data
+    beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
+    b: float, the intercept coefficient
+    '''
+    last_intercept = b
+    mean = torch.zeros(new_X.shape[0])
+    for i in range(n_cp+1):
+        if i==0:
+            start_age = data_X[:,0].min()
+            start_idx = 0
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(new_X<end_age)[0][-1]+1
+            last_change_point = start_age
+        elif i==n_cp:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(new_X>=start_age)[0][0]
+            end_age = new_X[:,0].max()
+            end_idx = new_X.shape[0]
+        else:
+            start_age = cp_loc_list[i-1]
+            start_idx = torch.where(new_X>=start_age)[0][0]
+            end_age = cp_loc_list[i]
+            end_idx = torch.where(new_X<end_age)[0][-1]+1
+        
+        mean[start_idx:end_idx] = beta_coef_list[i] * (new_X[start_idx:end_idx:,0]-last_change_point) + last_intercept
+        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
+        last_change_point = end_age
+    return mean
+
+def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+
+    '''
+    # Define our intercept prior
+    # weight_facor_list = torch.zeros(model_ensemble.shape[0])
+    # for i in range(model_ensemble.shape[0]):
+    weight_facor_list = pyro.sample("W",dist.Dirichlet(torch.ones(model_ensemble.shape[0])))
+    # weight_facor_list[i] = weight_factor
+    #generate random error for age
+    x_noise = torch.normal(0, x_sigma)
+    x_noisy = X[:, 0]+x_noise
+    #interpolate GIA model
+    mean = torch.zeros(len(x_noisy))
+    for i in range(model_ensemble.shape[0]):
+        GIA_model = interpolate.interp1d(model_age,model_ensemble[i])
+        x_noisy[x_noisy>X[:, 0].max()] = X[:, 0].max()
+        x_noisy[x_noisy<X[:, 0].min()] = X[:, 0].min()
+
+        #calculate mean prediction
+        
+        mean += torch.tensor(GIA_model(x_noisy)) *weight_facor_list[i] 
+    
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+class GIA_ensemble(Kernel):
+    '''
+    This is a class to define a GIA ensemble model as the mean function for GP
+
+    ------------Inputs--------------
+    GIA_model_interp: a list of interpolation function that can 3D interpolate the 
+    RSL history predicted by a GIA model
+
+    ------------Outputs--------------
+    mean: the prediction of the GIA ensemble model
+    '''
+    def __init__(self,GIA_model_interp,input_dim=1):
+        super().__init__(input_dim)
+        self.GIA_model_interp = GIA_model_interp
+        self.GIA_model_num =len(GIA_model_interp)
+        self.s = PyroParam(torch.tensor(1.0))
+        self.w = PyroParam(torch.ones(self.GIA_model_num))
+        
+    def forward(self, X):
+        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
+        for i in range(self.GIA_model_num):
+            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
+        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
+    
+
+#THis model can be implemented within a class
+def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    
+    linear_combination = pyro.sample("b", intercept_prior)
+    #Define our coefficient prior
+    
+    beta_coef = pyro.sample("a", coefficient_prior)
+    #generate random error for age
+    N = X.shape[0]
+    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
+    x_noisy = X[:, 0]+x_noise
+    
+    #calculate mean prediction
+    mean = linear_combination + (x_noisy * beta_coef)
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+#--------------------------------------3.2 Modelling Choice GP module-----------------------------------------------
+
+
+
+def cal_geo_dist2(X,Z=None):
+    '''
+    A function to calculate the squared distance matrix between each pair of X.
+    The function takes a PyTorch tensor of X and returns a matrix
+    where matrix[i, j] represents the spatial distance between the i-th and j-th X.
+    
+    -------Inputs-------
+    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+    R: approximate radius of earth in km
+    
+    -------Outputs-------
+    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
+    '''
+    if Z is None:
+        Z = X
+
+    # Convert coordinates to radians
+    X = torch.tensor(X)
+    Z = torch.tensor(Z)
+    X_coordinates_rad = torch.deg2rad(X)
+    Z_coordinates_rad = torch.deg2rad(Z)
+    
+    # Extract latitude and longitude tensors
+    X_latitudes_rad = X_coordinates_rad[:, 0]
+    X_longitudes_rad = X_coordinates_rad[:, 1]
+
+    Z_latitudes_rad = Z_coordinates_rad[:, 0]
+    Z_longitudes_rad = Z_coordinates_rad[:, 1]
+
+        # Calculate differences in latitude and longitude
+    dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
+    dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
+    # Apply Haversine formula
+    a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+
+    return c**2
 
 #-------------------------Define Spatio-temporal GP kernels-------------------------
 
@@ -1538,36 +1469,186 @@ class WhiteNoise(Isotropy):
             delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
             return self.variance * delta_fun.double()
 
-#THis model can be implemented within a class
-def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
-    '''
-    A function to define a linear model in pyro 
 
-    ------------Inputs--------------
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    intercept_prior: pyro distribution for the intercept coefficient
-    coefficient_prior: pyro distribution for the slope coefficient
 
+#--------------------------------------4. Optimization Choice module-----------------------------------------------
+
+def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
     '''
-    # Define our intercept prior
+    A funciton to optimize the hyperparameters of a GP model using SVI
+
+    ---------Inputs-----------
+    gpr: a GP model defined by pyro GPR regression
+    num_iteration: number of iterations for the optimization
+    lr: learning rate for the optimization
+    decay_r: decay rate for the learning rate
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+
+    ---------Outputs-----------
+    gpr: a GP model with optimized hyperparameters
+    track: a dictionary of loss
+    '''
     
-    linear_combination = pyro.sample("b", intercept_prior)
-    #Define our coefficient prior
+    #clear the param store
+    pyro.clear_param_store()
+    #convert the model to double precision
+    gpr = gpr.double()
+    #define the optimiser
+    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
+
+    #define the loss function
+    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+    #do the optimisation
+    track_list = []
+
+    for i in tqdm(range(num_iteration)):
+        scheduler.step()
+        optimizer.zero_grad()
+        loss = loss_fn(gpr.model, gpr.guide)
+        loss.backward()
+        optimizer.step()
+        gpr.set_mode("guide")
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
     
-    beta_coef = pyro.sample("a", coefficient_prior)
-    #generate random error for age
-    N = X.shape[0]
-    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
-    x_noisy = X[:, 0]+x_noise
+    #generate columns names for the track list
+    col_name = ['loss' ]
+
+    for i in (dict(pyro.get_param_store()).keys()):
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
+    #convert the track list to a dataframe
+    track_list=pd.DataFrame(track_list,columns=col_name)
+
+    return gpr,track_list
+
+
+def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100,gpu=False):
+    '''
+    A funciton to optimize the hyperparameters of a GP model using SVI
+
+    ---------Inputs-----------
+    gpr: a GP model defined by pyro GPR regression
+    x_sigma: one sigma uncertainty for input data
+    num_iteration: number of iterations for the optimization
+    lr: learning rate for the optimization
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+    gpu: whether use gpu to accelerate training 
+    ---------Outputs-----------
+    gpr: a GP model with optimized hyperparameters
+    track: a dictionary of loss
+    '''
     
-    #calculate mean prediction
-    mean = linear_combination + (x_noisy * beta_coef)
-    with pyro.plate("data", y.shape[0]):        
-        # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+    #clear the param store
+    pyro.clear_param_store()
+    #convert the model to double precision
+    gpr = gpr.double()
+    #define the optimiser
+    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    #define the learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
+    #define the loss function
+    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+    #do the optimisation
+    track_list = []
+    N = len(gpr.X)
+
+    if gpr.noise.dim()==1:
+        y_sigma = gpr.noise**0.5
+    elif gpr.noise.dim()==2:
+        y_sigma = gpr.noise.view(-1)[:: N + 1]**0.5
+
+    for i in tqdm(range(num_iteration)):
+        #update vertical noise based on gradient
+        if gpu:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
+        else:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
+        y_mean, _ = gpr(x_test.double(), full_cov=False)
+        y_mean.sum().backward(retain_graph=True)
+        if gpu:
+            y_rate = x_test.grad.cuda()
+        else:
+            y_rate = x_test.grad
+        if y_rate.ndim>1: y_rate = y_rate[:,0]
+        new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
+
+        if gpr.noise.dim()==1:
+            gpr.noise = torch.tensor(new_sigma**2)
+        elif gpr.noise.dim()==2:
+            gpr.noise.view(-1)[:: N + 1] = torch.tensor(new_sigma**2)
+
+        scheduler.step()
+        optimizer.zero_grad()
+        loss = loss_fn(gpr.model, gpr.guide)
+        loss.backward()
+        optimizer.step()
+        gpr.set_mode("guide")
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
+    
+    #generate columns names for the track list
+    col_name = ['loss' ]
+
+    for i in (dict(pyro.get_param_store()).keys()):
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
+    #convert the track list to a dataframe
+    track_list=pd.DataFrame(track_list,columns=col_name)
+
+    return gpr,track_list
+
+
+def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+    '''
+    A function to run NUTS MCMC for GP regression model
+
+    ----------Inputs---------
+    gpr: a pyro GP regression model
+    num_samples: number of samples to draw from the posterior
+    warmup_steps: number of warmup steps for NUTS
+    target_accept_prob: target acceptance probability for NUTS
+    print_stats: whether to print the states of the model
+
+    ----------Outputs---------
+    mcmc: a pyro MCMC object
+    
+    '''
+    hmc_kernel = NUTS(gpr.model,target_accept_prob=target_accept_prob)
+    mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
+    mcmc.run()
+    if print_stats:
+        for name, value in mcmc.get_samples().items():
+            if 'kernel' in name:
+                
+                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
+                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
+                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
+
+    return mcmc
+
+
 
 def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
     '''
@@ -1604,6 +1685,155 @@ def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=
     return guide,losses
 
 
+#--------------------------------------5. Post-Processing module-----------------------------------------------
+
+
+def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
+    '''
+    A function to prediction posterior mean and covariance of GP regression model
+
+    ----------Inputs----------
+    input_gpr: a pyro GP regression model
+    mcmc: a pyro MCMC object
+    Xnew: a torch tensor of new input data
+
+    ----------Outputs----------
+    full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
+    full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
+    full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model
+    '''
+    
+    def predictive(X_new,gpr):
+        y_loc, y_cov = gpr(X_new,full_cov=True)
+        pyro.sample("y", dist.Delta(y_loc))
+        pyro.sample("y_cov", dist.Delta(y_cov))
+        
+    Xnew = torch.tensor(Xnew).double()
+    thin_mcmc = mcmc.get_samples()
+    for i in thin_mcmc:
+        thin_mcmc[i] = thin_mcmc[i][::thin_index]
+
+    posterior_predictive = Predictive(predictive, thin_mcmc)
+    full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
+    full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
+    full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
+    full_bayes_std_mean = np.diag(full_bayes_cov_mean)**0.5
+    likelihood_list = []
+    noise = np.ones(len(input_gpr.X))*input_gpr.noise.detach().numpy()
+
+    for i in range(len(full_bayes_mean)):
+        f = interpolate.interp1d(Xnew,full_bayes_mean[i])
+        likelihood_list.append(cal_likelihood(input_gpr.y.detach().numpy(),
+                                              noise**0.5,
+                                              f(input_gpr.X)))
+        
+    return full_bayes_mean_mean,full_bayes_cov_mean,full_bayes_std_mean,likelihood_list
+
+
+def gen_pred_matrix(age,lat,lon):
+    '''
+    A function to generate an input matrix for Spatio-temporal GP model
+
+    ----------Inputs----------------
+    age: a numpy array, age of the prediction points
+    lat: a numpy array, latitude of the prediction points
+    lon: a numpy array, longitude of the prediction points
+
+    ----------Outputs----------------
+    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model
+    '''
+    age = np.array(age)
+    lat = np.array(lat)
+    lon = np.array(lon)
+
+    lon_matrix,lat_matrix,age_matrix = np.meshgrid(lon,lat,age)
+    
+    output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
+    return output_matrix
+
+def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
+    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+    GP).
+    ------------------Inputs----------------------------
+    test_X: an array of test input values
+    cov_matrix: full covariance matrix from GP regression
+    mean_rsl: GP regression produced mean RSL prediction
+    difftimestep: time period for averaging 
+    
+    ------------------Outputs---------------------------
+    difftimes: time series for the outputs
+    rate: averaged sea-level change rate
+    rate_sd: averaged sea-level change rate standard deviation
+    '''
+    
+    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
+    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
+    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
+    Mdiff = Mdiff[sub, :]
+    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
+    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
+    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
+    rate = Mdiff @ mean_rsl
+    
+    return difftimes,rate, rate_sd
+
+
+def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
+    N = len(gpr.X)
+    M = pred_matrix.size(0)
+    f_loc = gpr.y - gpr.mean_function(gpr.X)
+    latent_shape = f_loc.shape[:-1]
+    loc_shape = latent_shape + (M,)
+    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
+    f_loc_2D = f_loc.reshape(N, -1)
+    loc_shape = latent_shape + (M,)
+    v_2D = f_loc_2D
+    Kff = gpr.kernel(gpr.X).contiguous()
+    Kff +=gpr.noise
+    Kff.view(-1)[:: N + 1] += gpr.jitter    # add noise to the diagonal
+    Lff = torch.linalg.cholesky(Kff)
+    
+    output = []
+    for kernel in kernels:
+        Kfs = kernel(gpr.X, pred_matrix)
+        pack = torch.cat((f_loc_2D, Kfs), dim=1)
+        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
+        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
+        Qss = W.matmul(W.t())
+        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
+        loc = W.matmul(v_2D).t().reshape(loc_shape)
+        Kss = kernel(pred_matrix)
+        cov = Kss - Qss
+        output.append((loc, cov))
+        
+    return output
+
+def cal_misfit(y,y_sigma,prediction):
+    
+    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
+
+def cal_likelihood(y,y_std,pred):
+    '''A function used to calcualte log likelihood function for a given prediction.
+    This calculation only considers uncertainty in y axis. 
+    
+    ------------Inputs------------------
+    y: reconstructed rsl
+    y_std: standard deviation of reconstructed rsl
+    pred: mean predction of rsl
+    
+    ------------Outputs------------------
+    likelihood: mean likelihood of prediction fit to observation
+    '''
+    from scipy.stats import norm
+
+    log_likelihood = 1 
+    for i in range(len(y)):
+        
+        norm_dis = norm(y[i], y_std[i])
+        log_likelihood+=np.log(norm_dis.pdf(pred[i]))
+    
+    return log_likelihood
+
 def cal_MSE(y,yhat):
     '''
     A function to calculate MSE coefficient
@@ -1619,188 +1849,5 @@ def cal_wMSE(y,yhat,y_sigma):
     wMSE = np.sum((yhat-y)**2/y_sigma**2)/len(y)
     return wMSE
     
-def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
-    '''
-    A function to define a change-point model in pyro
 
-    ------------Inputs--------------
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    n_cp: int, number of change-points
-    intercept_prior: pyro distribution for the intercept coefficient
-    coefficient_prior: pyro distribution for the slope coefficient
-
-    '''
-    # Define our intercept prior
-    # intercept_prior = dist.Uniform(-5., 5.)
-    b = pyro.sample("b", intercept_prior)
-    beta_coef_list = torch.zeros(n_cp+1)
-    cp_loc_list = torch.zeros(n_cp)
-    #Define our coefficient prior
-    cp_loc_prior = torch.linspace(X[:,0].min(),X[:,0].max(),n_cp+1)
-    gap = cp_loc_prior[1]-cp_loc_prior[0]
-    for i in range(n_cp+1):
-        # coefficient_prior = dist.Uniform(-0.01, 0.01)
-        beta_coef = pyro.sample(f"a_{i}", coefficient_prior)    
-        beta_coef_list[i] = beta_coef
-        if i<n_cp:
-            cp_prior = dist.Uniform(cp_loc_prior[i]-gap,cp_loc_prior[i+1]+gap)
-            cp_loc = pyro.sample(f"cp_{i}", cp_prior)
-            cp_loc_list[i] = cp_loc
-    # cp_loc_list,cp_sort_index = cp_loc_list.sort()
-    # beta_coef_list = beta_coef_list[cp_sort_index]
-
-    #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
-    x_noisy = X[:, 0]+x_noise
-
-    mean = torch.zeros(X.shape[0])
-    last_intercept = b
-    
-    for i in range(n_cp+1):
-        if i==0:
-            start_age = X[:,0].min()
-            start_idx = 0
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
-            last_change_point = start_age
-        elif i==n_cp:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(x_noisy>=start_age)[0][0]
-            end_age = X[:,0].max()
-            end_idx = X.shape[0]
-        else:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(x_noisy>=start_age)[0][0]
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
-
-        mean[start_idx:end_idx] = beta_coef_list[i] * (x_noisy[start_idx:end_idx]-last_change_point) + last_intercept
-        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
-        last_change_point = end_age
-        
-    with pyro.plate("data", y.shape[0]):        
-        # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-
-def get_change_point_posterior(guide,sample_number):
-    num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
-    output_dict = dict()
-    output_dict['b'] = np.zeros(sample_number)
-    output_dict['a'] = np.zeros([sample_number,num_cp+1])
-    output_dict['cp'] = np.zeros([sample_number,num_cp])
-    test_cp = []
-    for i in range(num_cp):
-        test_cp.append(guide.median()['cp_'+str(i)].detach().numpy())
-    cp_index = np.argsort(test_cp)
-    
-    for i in range(sample_number):
-        store_beta = []
-        store_cp = []
-        posterior_samples = guide()
-        for i2 in range(num_cp+1):
-            store_beta.append(posterior_samples['a_'+str(i2)].detach().numpy())
-            if i2 < num_cp:
-                store_cp.append(posterior_samples['cp_'+str(i2)].detach().numpy())
-        output_dict['b'][i] = posterior_samples['b'].detach().numpy()
-        output_dict['a'][i] = np.array(store_beta)
-        output_dict['cp'][i] = np.array(store_cp)[cp_index]
-    return output_dict
-
-def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
-    '''
-    A function to calculate the forward model of the change-point model
-
-    ------------Inputs--------------
-    n_cp: int, number of change-points
-    cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points
-    new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction
-    data_X: 2D torch tensor with shape (n_samples,n_features) for training data
-    beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
-    b: float, the intercept coefficient
-    '''
-    last_intercept = b
-    mean = torch.zeros(new_X.shape[0])
-    for i in range(n_cp+1):
-        if i==0:
-            start_age = data_X[:,0].min()
-            start_idx = 0
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(new_X<end_age)[0][-1]+1
-            last_change_point = start_age
-        elif i==n_cp:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(new_X>=start_age)[0][0]
-            end_age = new_X[:,0].max()
-            end_idx = new_X.shape[0]
-        else:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(new_X>=start_age)[0][0]
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(new_X<end_age)[0][-1]+1
-        
-        mean[start_idx:end_idx] = beta_coef_list[i] * (new_X[start_idx:end_idx:,0]-last_change_point) + last_intercept
-        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
-        last_change_point = end_age
-    return mean
-
-def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
-    '''
-    A function to define a linear model in pyro 
-
-    ------------Inputs--------------
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-
-    '''
-    # Define our intercept prior
-    # weight_facor_list = torch.zeros(model_ensemble.shape[0])
-    # for i in range(model_ensemble.shape[0]):
-    weight_facor_list = pyro.sample("W",dist.Dirichlet(torch.ones(model_ensemble.shape[0])))
-    # weight_facor_list[i] = weight_factor
-    #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
-    x_noisy = X[:, 0]+x_noise
-    #interpolate GIA model
-    mean = torch.zeros(len(x_noisy))
-    for i in range(model_ensemble.shape[0]):
-        GIA_model = interpolate.interp1d(model_age,model_ensemble[i])
-        x_noisy[x_noisy>X[:, 0].max()] = X[:, 0].max()
-        x_noisy[x_noisy<X[:, 0].min()] = X[:, 0].min()
-
-        #calculate mean prediction
-        
-        mean += torch.tensor(GIA_model(x_noisy)) *weight_facor_list[i] 
-    
-    with pyro.plate("data", y.shape[0]):        
-        # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-
-class GIA_ensemble(Kernel):
-    '''
-    This is a class to define a GIA ensemble model as the mean function for GP
-
-    ------------Inputs--------------
-    GIA_model_interp: a list of interpolation function that can 3D interpolate the 
-    RSL history predicted by a GIA model
-
-    ------------Outputs--------------
-    mean: the prediction of the GIA ensemble model
-    '''
-    def __init__(self,GIA_model_interp,input_dim=1):
-        super().__init__(input_dim)
-        self.GIA_model_interp = GIA_model_interp
-        self.GIA_model_num =len(GIA_model_interp)
-        self.s = PyroParam(torch.tensor(1.0))
-        self.w = PyroParam(torch.ones(self.GIA_model_num))
-        
-    def forward(self, X):
-        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
-        for i in range(self.GIA_model_num):
-            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
-        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
     
