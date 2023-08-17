@@ -62,3 +62,9 @@ RSL_All_30Dec2015.csv
 	(2016). Temperature-driven global sea level variability in the Common Era.
 	Proceedings of the National Academy of Sciences.
 	doi: 10.1073/pnas.1517056113.
+
+RSL_All_17Mar2020.tsv
+
+    Walker, J. S., R. E. Kopp, C. M. Little, and B. P. Horton (2022).
+	Timing of emergence of modern rates of sea-level rise by 1863.
+	Nature Communications. https://doi.org/10.1038/s41467-022-28564-6
