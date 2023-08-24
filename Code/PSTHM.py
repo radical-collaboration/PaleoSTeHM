@@ -23,7 +23,7 @@ from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.infer import MCMC, NUTS, Predictive
-
+from pyro.contrib.gp.kernels.dot_product import DotProduct
 
 import matplotlib.path as mpath
 import matplotlib.gridspec as gridspec
@@ -33,147 +33,7 @@ font = {'weight':'normal',
 
 matplotlib.rc('font',**font)
 
-def load_local_rsl_data(file):
-    '''
-    A function to load rsl data from a csv file, this csv 
-    file should be presented in the same format as NJ_CC.csv in data folder
-
-    ---------Inputs---------
-    file: str, the path to the csv file
-
-    ---------Outputs---------
-    X: torch.tensor, the age of rsl data
-    y: torch.tensor, the rsl data
-    y_sigma: torch.tensor, one sigma uncertainty of rsl data
-    x_sigma: torch.tensor, one uncertainty of age data
-    '''
-
-    #load data
-    data = pd.read_csv(file)
-    rsl = data['RSL']
-    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
-    rsl_age = -(data['Age']-1950) #convert age from BP to CE
-    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
-    rsl_lon = data['Longitude']
-    rsl_lat = data['Latitude']
-
-    #convert RSL data into tonsors
-    X = torch.tensor(rsl_age).flatten() #standardise age
-    y = torch.tensor(rsl).flatten()
-    y_sigma = torch.tensor(rsl_2sd/2).flatten()
-    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
-
-    return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
-
-def load_regional_rsl_data(file):
-    '''
-    A function to load rsl data from a csv file, this csv 
-    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
-
-    ---------Inputs---------
-    file: str, the path to the csv file
-
-    ---------Outputs---------
-    marine_limiting: a list containing marine limiting data (details below)
-    SLIP: a list containing sea-level index point data
-    terrestrial limiting: a list containing terrestrial limiting data
-
-    data within each list:
-    X: torch.tensor, the age of rsl data
-    y: torch.tensor, the rsl data
-    y_sigma: torch.tensor, one sigma uncertainty of rsl data
-    x_sigma: torch.tensor, one uncertainty of age data
-    lon: numpy.array, 
-    rsl_region: a number indicating the region where data locates at
-    '''
-
-    #load data
-    data = pd.read_csv(file)
-    rsl = data['RSL']
-    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
-    rsl_age = -(data['Age']-1950) #convert age from BP to CE
-    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
-    rsl_lon = data['Longitude']
-    rsl_lat = data['Latitude']
-    rsl_region = data['Region.1']
-    rsl_limiting = data['Limiting']
-    marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
-
-    #convert RSL data into tonsors
-    X = torch.tensor(rsl_age).flatten() #standardise age
-    y = torch.tensor(rsl).flatten()
-    y_sigma = torch.tensor(rsl_2sd/2).flatten()
-    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
-    
-    marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
-                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
-
-    SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
-                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
-
-    marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
-                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
-
-    return marine_limiting, SLIP, marine_limiting
-
-
-def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
-    '''
-    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.
-    We have filtered out data with -99999 value, missing data (with 'Y' indicated) or any flagged data (i.e., the fourth column is not 0).
-    ---------Inputs---------
-    data_folder: str, the path to the data folder
-    min_lat: float, the minimum latitude of the region of interest
-    max_lat: float, the maximum latitude of the region of interest
-    min_lon: float, the minimum longitude of the region of interest
-    max_lon: float, the maximum longitude of the region of interest
-
-    ---------Outputs---------
-    US_AT_data: a list containing US Atlantic coast data 
-    '''
-    if data_folder[-1]!='/':
-        data_folder = data_folder+'/'
-    if len(os.listdir(data_folder))<5:
-        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
-            zip_ref.extractall(data_folder)
-    site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
-    US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
-    US_AT_site = site_file.iloc[:,0][US_AT_index].values
-    US_AT_lat = site_file.iloc[:,1][US_AT_index].values
-    US_AT_lon = site_file.iloc[:,2][US_AT_index].values
-
-    #generate US Atlantic coast data
-    US_AT_data = None
-    for i,p in enumerate(US_AT_site):
-        if US_AT_data is None:
-            US_AT_data = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
-            US_AT_data[4] = US_AT_lat[i]
-            US_AT_data[5] = US_AT_lon[i]
-        else:
-            tmp = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
-            tmp[4] = US_AT_lat[i]
-            tmp[5] = US_AT_lon[i]
-            US_AT_data = pd.concat([US_AT_data,tmp],ignore_index=True)
-    
-    data_filter = US_AT_data.iloc[:,1]!=-99999
-    data_filter_2 = US_AT_data.iloc[:,2]=='N'
-    data_filter_3 = US_AT_data.iloc[:,3]==0
-    US_site_coord = np.unique(US_AT_data.iloc[:,4:],axis=0)
-    data_filter_4 = np.zeros(len(data_filter_3),dtype=bool)
-    data_filter_5 = np.zeros(len(data_filter_3),dtype=bool)
-    new_rsl = np.zeros(len(data_filter_3))
-    for i in range(len(US_site_coord)):
-        site_index = np.sum(US_AT_data.iloc[:,4:],axis=1) == np.sum(US_site_coord[i])
-        if np.max(US_AT_data[site_index].iloc[:,0])-np.min(US_AT_data[site_index].iloc[:,0])>=min_time_span:
-            data_filter_4[site_index] = True
-        if np.max(US_AT_data[site_index].iloc[:,0])>=latest_age:
-            data_filter_5[site_index] = True
-        new_rsl[site_index] = US_AT_data[site_index].iloc[:,1]- US_AT_data[site_index].iloc[-1,1]
-    US_AT_data.iloc[:,1] = new_rsl
-    data_filter_all = data_filter & data_filter_2 & data_filter_3 & data_filter_4 & data_filter_5
-    US_AT_data = US_AT_data[data_filter_all]
-    
-    return US_AT_data
+#--------------------------------------1. Plotting Module-----------------------------------------------
 
 def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     '''
@@ -427,55 +287,183 @@ def plot_spatial_rsl_range(pred_matrix,y_mean,y_var,rsl_lon,rsl_lat,rsl_age,rsl_
     if save_fig: 
         plt.savefig('RSL_map_{}_{}.png'.format(min_time,max_time),dpi=300,bbox_inches='tight')
     
-def gen_pred_matrix(age,lat,lon):
+
+def plot_track_list(track_list):
     '''
-    A function to generate an input matrix for Spatio-temporal GP model
-
-    ----------Inputs----------------
-    age: a numpy array, age of the prediction points
-    lat: a numpy array, latitude of the prediction points
-    lon: a numpy array, longitude of the prediction points
-
-    ----------Outputs----------------
-    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model
+    A function to plot the track_list generated from SVI_optm function
     '''
-    age = np.array(age)
-    lat = np.array(lat)
-    lon = np.array(lon)
-
-    lon_matrix,lat_matrix,age_matrix = np.meshgrid(lon,lat,age)
     
-    output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
-    return output_matrix
+    if track_list.shape[1]%3==0:
+        row_num = (track_list.shape[1])//3
+    else:
+        row_num = track_list.shape[1]//3+1
 
-def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
-    N = len(gpr.X)
-    M = pred_matrix.size(0)
-    f_loc = gpr.y - gpr.mean_function(gpr.X)
-    latent_shape = f_loc.shape[:-1]
-    loc_shape = latent_shape + (M,)
-    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
-    f_loc_2D = f_loc.reshape(N, -1)
-    loc_shape = latent_shape + (M,)
-    v_2D = f_loc_2D
-    Kff = gpr.kernel(gpr.X).contiguous()
-    Kff.view(-1)[:: N + 1] += gpr.jitter + gpr.noise  # add noise to the diagonal
-    Lff = torch.linalg.cholesky(Kff)
+    fig,axes = plt.subplots(row_num,3,figsize=(30,row_num*8))
+
+    if row_num==1:
+        for i in range(row_num*3):
+            axes[i].plot(np.arange(len(track_list)),track_list.iloc[:,i])
+            axes[i].set_title('{} : {:6.6f}'.format(track_list.columns[i]
+                                                    ,track_list.iloc[-1,i]))
     
-    output = []
-    for kernel in kernels:
-        Kfs = kernel(gpr.X, pred_matrix)
-        pack = torch.cat((f_loc_2D, Kfs), dim=1)
-        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
-        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
-        Qss = W.matmul(W.t())
-        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
-        loc = W.matmul(v_2D).t().reshape(loc_shape)
-        Kss = kernel(pred_matrix)
-        cov = Kss - Qss
-        output.append((loc, cov))
-        
-    return output
+    else:
+        for i in range(row_num):
+            for j in range(3):
+                if i*3+j < track_list.shape[1]:
+                    axes[i,j].plot(np.arange(len(track_list)),track_list.iloc[:,i*3+j])
+                    axes[i,j].set_title('{}: {:6.6f}'.format(track_list.columns[i*3+j],
+                                                            track_list.iloc[-1,i*3+j]))
+                else:
+                    axes[i,j].set_visible(False)
+
+    return axes
+
+#--------------------------------------2. Data Loading Module-----------------------------------------------
+
+
+def load_local_rsl_data(file):
+    '''
+    A function to load rsl data from a csv file, this csv 
+    file should be presented in the same format as NJ_CC.csv in data folder
+
+    ---------Inputs---------
+    file: str, the path to the csv file
+
+    ---------Outputs---------
+    X: torch.tensor, the age of rsl data
+    y: torch.tensor, the rsl data
+    y_sigma: torch.tensor, one sigma uncertainty of rsl data
+    x_sigma: torch.tensor, one uncertainty of age data
+    '''
+
+    #load data
+    data = pd.read_csv(file)
+    rsl = data['RSL']
+    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
+    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
+    rsl_lon = data['Longitude']
+    rsl_lat = data['Latitude']
+
+    #convert RSL data into tonsors
+    X = torch.tensor(rsl_age).flatten() #standardise age
+    y = torch.tensor(rsl).flatten()
+    y_sigma = torch.tensor(rsl_2sd/2).flatten()
+    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
+
+    return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
+
+def load_regional_rsl_data(file):
+    '''
+    A function to load rsl data from a csv file, this csv 
+    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
+
+    ---------Inputs---------
+    file: str, the path to the csv file
+
+    ---------Outputs---------
+    marine_limiting: a list containing marine limiting data (details below)
+    SLIP: a list containing sea-level index point data
+    terrestrial limiting: a list containing terrestrial limiting data
+
+    data within each list:
+    X: torch.tensor, the age of rsl data
+    y: torch.tensor, the rsl data
+    y_sigma: torch.tensor, one sigma uncertainty of rsl data
+    x_sigma: torch.tensor, one uncertainty of age data
+    lon: numpy.array, 
+    rsl_region: a number indicating the region where data locates at
+    '''
+
+    #load data
+    data = pd.read_csv(file)
+    rsl = data['RSL']
+    rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
+    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
+    rsl_lon = data['Longitude']
+    rsl_lat = data['Latitude']
+    rsl_region = data['Region.1']
+    rsl_limiting = data['Limiting']
+    marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
+
+    #convert RSL data into tonsors
+    X = torch.tensor(rsl_age).flatten() #standardise age
+    y = torch.tensor(rsl).flatten()
+    y_sigma = torch.tensor(rsl_2sd/2).flatten()
+    x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
+    
+    marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
+                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
+
+    SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
+                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
+
+    marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
+                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
+
+    return marine_limiting, SLIP, marine_limiting
+
+
+def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
+    '''
+    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.
+    We have filtered out data with -99999 value, missing data (with 'Y' indicated) or any flagged data (i.e., the fourth column is not 0).
+    ---------Inputs---------
+    data_folder: str, the path to the data folder
+    min_lat: float, the minimum latitude of the region of interest
+    max_lat: float, the maximum latitude of the region of interest
+    min_lon: float, the minimum longitude of the region of interest
+    max_lon: float, the maximum longitude of the region of interest
+
+    ---------Outputs---------
+    US_AT_data: a list containing US Atlantic coast data 
+    '''
+    if data_folder[-1]!='/':
+        data_folder = data_folder+'/'
+    if len(os.listdir(data_folder))<5:
+        with zipfile.ZipFile(data_folder+'TG_data.zip', 'r') as zip_ref:
+            zip_ref.extractall(data_folder)
+    site_file = pd.read_table(data_folder+'/filelist.txt',delimiter=';',header=None,)
+    US_AT_index = (site_file.iloc[:,1]>=min_lat) & (site_file.iloc[:,1]<=max_lat) & (site_file.iloc[:,2]>=min_lon) & (site_file.iloc[:,2]<=max_lon)
+    US_AT_site = site_file.iloc[:,0][US_AT_index].values
+    US_AT_lat = site_file.iloc[:,1][US_AT_index].values
+    US_AT_lon = site_file.iloc[:,2][US_AT_index].values
+
+    #generate US Atlantic coast data
+    US_AT_data = None
+    for i,p in enumerate(US_AT_site):
+        if US_AT_data is None:
+            US_AT_data = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            US_AT_data[4] = US_AT_lat[i]
+            US_AT_data[5] = US_AT_lon[i]
+        else:
+            tmp = pd.read_table(data_folder+str(p)+'.rlrdata',delimiter=';',header=None)
+            tmp[4] = US_AT_lat[i]
+            tmp[5] = US_AT_lon[i]
+            US_AT_data = pd.concat([US_AT_data,tmp],ignore_index=True)
+    
+    data_filter = US_AT_data.iloc[:,1]!=-99999
+    data_filter_2 = US_AT_data.iloc[:,2]=='N'
+    data_filter_3 = US_AT_data.iloc[:,3]==0
+    US_site_coord = np.unique(US_AT_data.iloc[:,4:],axis=0)
+    data_filter_4 = np.zeros(len(data_filter_3),dtype=bool)
+    data_filter_5 = np.zeros(len(data_filter_3),dtype=bool)
+    new_rsl = np.zeros(len(data_filter_3))
+    for i in range(len(US_site_coord)):
+        site_index = np.sum(US_AT_data.iloc[:,4:],axis=1) == np.sum(US_site_coord[i])
+        if np.max(US_AT_data[site_index].iloc[:,0])-np.min(US_AT_data[site_index].iloc[:,0])>=min_time_span:
+            data_filter_4[site_index] = True
+        if np.max(US_AT_data[site_index].iloc[:,0])>=latest_age:
+            data_filter_5[site_index] = True
+        new_rsl[site_index] = US_AT_data[site_index].iloc[:,1]- US_AT_data[site_index].iloc[-1,1]
+    US_AT_data.iloc[:,1] = new_rsl
+    data_filter_all = data_filter & data_filter_2 & data_filter_3 & data_filter_4 & data_filter_5
+    US_AT_data = US_AT_data[data_filter_all]
+    
+    return US_AT_data
+
+#--------------------------------------3. Modelling Choice module-----------------------------------------------
 
 class GPRegression_V(GPModel):
     r"""
@@ -548,16 +536,23 @@ class GPRegression_V(GPModel):
             noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            self.noise = noise.double()
+            if  noise.dim() ==1:
+                noise_store = torch.zeros(len(self.X),len(self.X))
+                noise_store.view(-1)[:: len(self.X) + 1] += noise 
+                self.noise = noise_store.double()
+            elif noise.dim() ==2:
+                self.noise = noise.double()
+                
     @pyro_method
     def model(self):
         self.set_mode("model")
 
         N = self.X.size(0)
         Kff = self.kernel(self.X)
-#         print(self.noise.abs() )
+        Kff = Kff + self.noise
+        Kff.view(-1)[:: N + 1] += self.jitter 
+#         Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
 
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         zero_loc = self.X.new_zeros(self.X.size(0))
@@ -606,7 +601,9 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
+        Kff = Kff + self.noise
+        Kff.view(-1)[:: N + 1] += self.jitter 
+        # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         y_residual = self.y - self.mean_function(self.X)
@@ -707,331 +704,6 @@ class GPRegression_V(GPModel):
 
         return lambda xnew: sample_next(xnew, outside_vars)
 
-
-def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
-    '''
-    A funciton to optimize the hyperparameters of a GP model using SVI
-
-    ---------Inputs-----------
-    gpr: a GP model defined by pyro GPR regression
-    num_iteration: number of iterations for the optimization
-    lr: learning rate for the optimization
-    decay_r: decay rate for the learning rate
-    step_size: step size for the learning rate to decay. 
-    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
-
-    ---------Outputs-----------
-    gpr: a GP model with optimized hyperparameters
-    track: a dictionary of loss
-    '''
-    
-    #clear the param store
-    pyro.clear_param_store()
-    #convert the model to double precision
-    gpr = gpr.double()
-    #define the optimiser
-    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
-
-    #define the loss function
-    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-    #do the optimisation
-    track_list = []
-
-    for i in tqdm(range(num_iteration)):
-        scheduler.step()
-        optimizer.zero_grad()
-        loss = loss_fn(gpr.model, gpr.guide)
-        loss.backward()
-        optimizer.step()
-        gpr.set_mode("guide")
-        tem_para =  []
-        for i2 in pyro.get_param_store().values():
-            if i2.numel()==1:
-                tem_para.append(i2.item())
-            else:
-                for i3 in i2:
-                    tem_para.append(i3.item())
-        track_list.append([loss.item(),*tem_para])
-    
-    #generate columns names for the track list
-    col_name = ['loss' ]
-
-    for i in (dict(pyro.get_param_store()).keys()):
-        if pyro.get_param_store()[i].numel() ==1:
-            col_name.append(i[7:].replace('_map',''))
-        else:
-            for i2 in range(pyro.get_param_store()[i].numel()):
-                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
-    #convert the track list to a dataframe
-    track_list=pd.DataFrame(track_list,columns=col_name)
-
-    return gpr,track_list
-
-
-def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100,gpu=False):
-    '''
-    A funciton to optimize the hyperparameters of a GP model using SVI
-
-    ---------Inputs-----------
-    gpr: a GP model defined by pyro GPR regression
-    x_sigma: one sigma uncertainty for input data
-    num_iteration: number of iterations for the optimization
-    lr: learning rate for the optimization
-    step_size: step size for the learning rate to decay. 
-    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
-    gpu: whether use gpu to accelerate training 
-    ---------Outputs-----------
-    gpr: a GP model with optimized hyperparameters
-    track: a dictionary of loss
-    '''
-    
-    #clear the param store
-    pyro.clear_param_store()
-    #convert the model to double precision
-    gpr = gpr.double()
-    #define the optimiser
-    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
-    #define the learning rate scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
-    #define the loss function
-    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
-    #do the optimisation
-    track_list = []
-    y_sigma = gpr.noise**0.5
-    for i in tqdm(range(num_iteration)):
-        #update vertical noise based on gradient
-        if gpu:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
-        else:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
-        y_mean, _ = gpr(x_test.double(), full_cov=False)
-        y_mean.sum().backward(retain_graph=True)
-        if gpu:
-            y_rate = x_test.grad.cuda()
-        else:
-            y_rate = x_test.grad
-        if y_rate.ndim>1: y_rate = y_rate[:,0]
-        new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
-        gpr.noise = torch.tensor(new_sigma**2)
-
-        scheduler.step()
-        optimizer.zero_grad()
-        loss = loss_fn(gpr.model, gpr.guide)
-        loss.backward()
-        optimizer.step()
-        gpr.set_mode("guide")
-        tem_para =  []
-        for i2 in pyro.get_param_store().values():
-            if i2.numel()==1:
-                tem_para.append(i2.item())
-            else:
-                for i3 in i2:
-                    tem_para.append(i3.item())
-        track_list.append([loss.item(),*tem_para])
-    
-    #generate columns names for the track list
-    col_name = ['loss' ]
-
-    for i in (dict(pyro.get_param_store()).keys()):
-        if pyro.get_param_store()[i].numel() ==1:
-            col_name.append(i[7:].replace('_map',''))
-        else:
-            for i2 in range(pyro.get_param_store()[i].numel()):
-                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
-    #convert the track list to a dataframe
-    track_list=pd.DataFrame(track_list,columns=col_name)
-
-    return gpr,track_list
-
-def plot_track_list(track_list):
-    '''
-    A function to plot the track_list generated from SVI_optm function
-    '''
-    
-    if track_list.shape[1]%3==0:
-        row_num = (track_list.shape[1])//3
-    else:
-        row_num = track_list.shape[1]//3+1
-
-    fig,axes = plt.subplots(row_num,3,figsize=(30,row_num*8))
-
-    if row_num==1:
-        for i in range(row_num*3):
-            axes[i].plot(np.arange(len(track_list)),track_list.iloc[:,i])
-            axes[i].set_title('{} : {:6.6f}'.format(track_list.columns[i]
-                                                    ,track_list.iloc[-1,i]))
-    
-    else:
-        for i in range(row_num):
-            for j in range(3):
-                if i*3+j < track_list.shape[1]:
-                    axes[i,j].plot(np.arange(len(track_list)),track_list.iloc[:,i*3+j])
-                    axes[i,j].set_title('{}: {:6.6f}'.format(track_list.columns[i*3+j],
-                                                            track_list.iloc[-1,i*3+j]))
-                else:
-                    axes[i,j].set_visible(False)
-
-    return axes
-
-def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
-    '''
-    A function to run NUTS MCMC for GP regression model
-
-    ----------Inputs---------
-    gpr: a pyro GP regression model
-    num_samples: number of samples to draw from the posterior
-    warmup_steps: number of warmup steps for NUTS
-    target_accept_prob: target acceptance probability for NUTS
-    print_stats: whether to print the states of the model
-
-    ----------Outputs---------
-    mcmc: a pyro MCMC object
-    
-    '''
-    hmc_kernel = NUTS(gpr.model,target_accept_prob=target_accept_prob)
-    mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
-    mcmc.run()
-    if print_stats:
-        for name, value in mcmc.get_samples().items():
-            if 'kernel' in name:
-                
-                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
-                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
-                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
-
-    return mcmc
-
-def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
-    '''
-    A function to prediction posterior mean and covariance of GP regression model
-
-    ----------Inputs----------
-    input_gpr: a pyro GP regression model
-    mcmc: a pyro MCMC object
-    Xnew: a torch tensor of new input data
-
-    ----------Outputs----------
-    full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
-    full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
-    full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model
-    '''
-    
-    def predictive(X_new,gpr):
-        y_loc, y_cov = gpr(X_new,full_cov=True)
-        pyro.sample("y", dist.Delta(y_loc))
-        pyro.sample("y_cov", dist.Delta(y_cov))
-        
-    Xnew = torch.tensor(Xnew).double()
-    thin_mcmc = mcmc.get_samples()
-    for i in thin_mcmc:
-        thin_mcmc[i] = thin_mcmc[i][::thin_index]
-
-    posterior_predictive = Predictive(predictive, thin_mcmc)
-    full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
-    full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
-    full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
-    full_bayes_std_mean = np.diag(full_bayes_cov_mean)**0.5
-    likelihood_list = []
-    noise = np.ones(len(input_gpr.X))*input_gpr.noise.detach().numpy()
-
-    for i in range(len(full_bayes_mean)):
-        f = interpolate.interp1d(Xnew,full_bayes_mean[i])
-        likelihood_list.append(cal_likelihood(input_gpr.y.detach().numpy(),
-                                              noise**0.5,
-                                              f(input_gpr.X)))
-        
-    return full_bayes_mean_mean,full_bayes_cov_mean,full_bayes_std_mean,likelihood_list
-
-def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
-    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
-    GP).
-    ------------------Inputs----------------------------
-    test_X: an array of test input values
-    cov_matrix: full covariance matrix from GP regression
-    mean_rsl: GP regression produced mean RSL prediction
-    difftimestep: time period for averaging 
-    
-    ------------------Outputs---------------------------
-    difftimes: time series for the outputs
-    rate: averaged sea-level change rate
-    rate_sd: averaged sea-level change rate standard deviation
-    '''
-    
-    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
-    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
-    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
-    Mdiff = Mdiff[sub, :]
-    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
-    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
-    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
-    rate = Mdiff @ mean_rsl
-    
-    return difftimes,rate, rate_sd
-
-def cal_misfit(y,y_sigma,prediction):
-    
-    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
-
-def cal_likelihood(y,y_std,pred):
-    '''A function used to calcualte log likelihood function for a given prediction.
-    This calculation only considers uncertainty in y axis. 
-    
-    ------------Inputs------------------
-    y: reconstructed rsl
-    y_std: standard deviation of reconstructed rsl
-    pred: mean predction of rsl
-    
-    ------------Outputs------------------
-    likelihood: mean likelihood of prediction fit to observation
-    '''
-    from scipy.stats import norm
-
-    log_likelihood = 1 
-    for i in range(len(y)):
-        
-        norm_dis = norm(y[i], y_std[i])
-        log_likelihood+=np.log(norm_dis.pdf(pred[i]))
-    
-    return log_likelihood
-
-def cal_geo_dist2(X,Z=None):
-        '''
-        A function to calculate the squared distance matrix between each pair of X.
-        The function takes a PyTorch tensor of X and returns a matrix
-        where matrix[i, j] represents the spatial distance between the i-th and j-th X.
-        
-        -------Inputs-------
-        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
-        R: approximate radius of earth in km
-        
-        -------Outputs-------
-        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
-        '''
-        if Z is None:
-            Z = X
-
-        # Convert coordinates to radians
-        X = torch.tensor(X)
-        Z = torch.tensor(Z)
-        X_coordinates_rad = torch.deg2rad(X)
-        Z_coordinates_rad = torch.deg2rad(Z)
-        
-        # Extract latitude and longitude tensors
-        X_latitudes_rad = X_coordinates_rad[:, 0]
-        X_longitudes_rad = X_coordinates_rad[:, 1]
-
-        Z_latitudes_rad = Z_coordinates_rad[:, 0]
-        Z_longitudes_rad = Z_coordinates_rad[:, 1]
-
-         # Calculate differences in latitude and longitude
-        dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
-        dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
-        # Apply Haversine formula
-        a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
-        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-
-        return c**2
 
 class GPRegression_EIV(GPModel):
     r"""
@@ -1192,360 +864,6 @@ class GPRegression_EIV(GPModel):
 
         return loc + self.mean_function(Xnew), cov
 
-#-------------------------Define Spatio-temporal GP kernels-------------------------
-
-def _torch_sqrt(x, eps=1e-12):
-    """
-    A convenient function to avoid the NaN gradient issue of :func:`torch.sqrt`
-    at 0.
-    """
-    # Ref: https://github.com/pytorch/pytorch/issues/2421
-    return (x + eps).sqrt()
-
-
-class Isotropy(Kernel):
-    """
-    Base class for a family of isotropic covariance kernels which are functions of the
-    distance :math:`|x-z|/l`, where :math:`l` is the length-scale parameter.
-
-    By default, the parameter ``lengthscale`` has size 1. To use the isotropic version
-    (different lengthscale for each dimension), make sure that ``lengthscale`` has size
-    equal to ``input_dim``.
-
-    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.
-    """
-
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
-        super().__init__(input_dim, active_dims)
-
-        variance = torch.tensor(1.0) if variance is None else variance
-        self.variance = PyroParam(variance, constraints.positive)
-        if geo==False:
-            lengthscale = torch.tensor(1.0) if lengthscale is None else lengthscale
-            self.lengthscale = PyroParam(lengthscale, constraints.positive)
-        else:
-            s_lengthscale = torch.tensor(1.0) if s_lengthscale is None else s_lengthscale
-            self.s_lengthscale = PyroParam(s_lengthscale, constraints.positive)
-
-        self.geo= geo
-        
-    def _square_scaled_dist(self, X, Z=None):
-        """
-        Returns :math:`\|\frac{X-Z}{l}\|^2`.
-        """
-        if Z is None:
-            Z = X
-        X = self._slice_input(X)
-        Z = self._slice_input(Z)
-        if X.size(1) != Z.size(1):
-            raise ValueError("Inputs must have the same number of features.")
-
-        scaled_X = X / self.lengthscale
-        scaled_Z = Z / self.lengthscale
-        X2 = (scaled_X**2).sum(1, keepdim=True)
-        Z2 = (scaled_Z**2).sum(1, keepdim=True)
-        XZ = scaled_X.matmul(scaled_Z.t())
-        r2 = X2 - 2 * XZ + Z2.t()
-        return r2.clamp(min=0)
-
-    def _scaled_dist(self, X, Z=None):
-        """
-        Returns :math:`\|\frac{X-Z}{l}\|`.
-        """
-        return _torch_sqrt(self._square_scaled_dist(X, Z))
-
-    def _diag(self, X):
-        """
-        Calculates the diagonal part of covariance matrix on active features.
-        """
-        return self.variance.expand(X.size(0))
-
-    def _scaled_geo_dist2(self,X,Z=None):
-        '''
-        A function to calculate the squared distance matrix between each pair of X.
-        The function takes a PyTorch tensor of X and returns a matrix
-        where matrix[i, j] represents the spatial distance between the i-th and j-th X.
-        
-        -------Inputs-------
-        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
-        R: approximate radius of earth in km
-        
-        -------Outputs-------
-        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
-        '''
-        if Z is None:
-            Z = X
-
-        # Convert coordinates to radians
-        X = torch.tensor(X)
-        Z = torch.tensor(Z)
-        X_coordinates_rad = torch.deg2rad(X)
-        Z_coordinates_rad = torch.deg2rad(Z)
-        
-        # Extract latitude and longitude tensors
-        X_latitudes_rad = X_coordinates_rad[:, 0]
-        X_longitudes_rad = X_coordinates_rad[:, 1]
-
-        Z_latitudes_rad = Z_coordinates_rad[:, 0]
-        Z_longitudes_rad = Z_coordinates_rad[:, 1]
-
-         # Calculate differences in latitude and longitude
-        dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
-        dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
-        # Apply Haversine formula
-        a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
-        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-
-        # Calculate the distance matrix
-        distance_matrix = c / self.s_lengthscale
-
-        return distance_matrix**2
-    
-    def _scaled_geo_dist(self, X, Z=None):
-        """
-        Returns :geo distance between X
-        """
-        return _torch_sqrt(self._scaled_geo_dist2(X, Z))
-
-class RBF(Isotropy):
-    r"""
-    Implementation of Radial Basis Function kernel:
-
-        :math:`k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).`
-
-    .. note:: This kernel also has name `Squared Exponential` in literature.
-    """
-
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
-        super().__init__(input_dim,variance, lengthscale,s_lengthscale, active_dims,geo)
-
-    def forward(self, X, Z=None, diag=False):
-        
-        if diag:
-            return self._diag(X)
-        if Z is None: Z=X
-
-        if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
-            return self.variance * torch.exp(-0.5 * r2)
-        else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
-            return torch.exp(-0.5 * r2)
-        
-
-
-
-class RationalQuadratic(Isotropy):
-    r"""
-    Implementation of RationalQuadratic kernel:
-
-        :math:`k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}
-        \right)^{-\alpha}.`
-
-    :param torch.Tensor scale_mixture: Scale mixture (:math:`\alpha`) parameter of this
-        kernel. Should have size 1.
-    """
-
-    def __init__(
-        self,
-        input_dim,
-        variance=None,
-        lengthscale=None,
-        s_lengthscale=None,
-        scale_mixture=None,
-        active_dims=None,
-        geo=False
-    ):
-        super().__init__(input_dim, variance, lengthscale,s_lengthscale, active_dims,geo)
-
-        if scale_mixture is None:
-            scale_mixture = torch.tensor(1.0)
-        self.scale_mixture = PyroParam(scale_mixture, constraints.positive)
-
-    def forward(self, X, Z=None, diag=False):
-        if diag:
-            return self._diag(X)
-        
-        if Z is None: Z=X
-
-        if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
-            return self.variance * (1 + (0.5 / self.scale_mixture) * r2).pow(
-            -self.scale_mixture
-        )
-        else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
-            return (1 + (0.5 / self.scale_mixture) * r2).pow(
-            -self.scale_mixture
-            )           
-        
-
-
-
-class Exponential(Isotropy):
-    r"""
-    Implementation of Exponential kernel:
-
-        :math:`k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).`
-    """
-
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
-        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
-
-    def forward(self, X, Z=None, diag=False):
-        if diag:
-            return self._diag(X)
-        
-        if Z is None: Z=X
-
-        if self.geo==False:
-            r = self._scaled_dist(X[:,:1], Z[:,:1])
-            return self.variance * torch.exp(-r)
-        else:
-            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
-            return torch.exp(-r)
-        
-
-
-
-class Matern32(Isotropy):
-    r"""
-    Implementation of Matern32 kernel:
-
-        :math:`k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)
-        \exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).`
-    """
-
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
-        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
-
-    def forward(self, X, Z=None, diag=False):
-        if diag:
-            return self._diag(X)
-        
-        if Z is None: Z=X
-
-        if self.geo==False:
-            r = self._scaled_dist(X[:,:1], Z[:,:1])
-            sqrt3_r = 3**0.5 * r
-            return self.variance * (1 + sqrt3_r) * torch.exp(-sqrt3_r)
-        else:
-            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
-            sqrt3_r = 3**0.5 * r
-            return (1 + sqrt3_r) * torch.exp(-sqrt3_r)
-        
-
-
-
-class Matern52(Isotropy):
-    r"""
-    Implementation of Matern52 kernel:
-
-        :math:`k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times
-        \frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).`
-    """
-
-    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
-        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
-
-    def forward(self, X, Z=None, diag=False):
-        if diag:
-            return self._diag(X)
-        
-        if Z is None: Z=X
-
-        if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
-            r = _torch_sqrt(r2)
-            sqrt5_r = 5**0.5 * r
-            return self.variance * (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
-        else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
-            r = _torch_sqrt(r2)
-            sqrt5_r = 5**0.5 * r
-            return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
-        
-#THis model can be implemented within a class
-def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
-    '''
-    A function to define a linear model in pyro 
-
-    ------------Inputs--------------
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    intercept_prior: pyro distribution for the intercept coefficient
-    coefficient_prior: pyro distribution for the slope coefficient
-
-    '''
-    # Define our intercept prior
-    
-    linear_combination = pyro.sample("b", intercept_prior)
-    #Define our coefficient prior
-    
-    beta_coef = pyro.sample("a", coefficient_prior)
-    #generate random error for age
-    N = X.shape[0]
-    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
-    x_noisy = X[:, 0]+x_noise
-    
-    #calculate mean prediction
-    mean = linear_combination + (x_noisy * beta_coef)
-    with pyro.plate("data", y.shape[0]):        
-        # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-
-def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
-    '''
-    A function to optimize the pyro model
-
-    ------------Inputs--------------
-    model: PaleoSTeHM model
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    *args: prior distributions for the model
-    lr: learning rate
-    number_of_steps: number of steps to train the model
-
-    ------------Outputs--------------
-    guide: the optimized model
-    losses: the loss of the model during training
-    '''
-
-    #-------Construct model---------
-    model = model
-    guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
-
-    #-------Train the model---------
-    pyro.clear_param_store()
-    losses = []
-    adam = pyro.optim.Adam({"lr":lr})
-    svi = SVI(model, guide, adam, loss=Trace_ELBO())
-    for j in tqdm(range(number_of_steps)):
-        # calculate the loss and take a gradient step
-        loss = svi.step(X, y, x_sigma,y_sigma,*args)
-        losses.append(loss/len(X))
-    return guide,losses
-
-
-def cal_MSE(y,yhat):
-    '''
-    A function to calculate MSE coefficient
-    '''
-    MSE = np.sum((yhat-y)**2)/len(y)
-    return MSE
-
-
-def cal_wMSE(y,yhat,y_sigma):
-    '''
-    A function to calculate weighted MSE coefficient
-    '''
-    wMSE = np.sum((yhat-y)**2/y_sigma**2)/len(y)
-    return wMSE
-    
 def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
     '''
     A function to define a change-point model in pyro
@@ -1730,4 +1048,806 @@ class GIA_ensemble(Kernel):
         for i in range(self.GIA_model_num):
             pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
         return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
+    
+
+#THis model can be implemented within a class
+def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
+    '''
+    A function to define a linear model in pyro 
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+
+    '''
+    # Define our intercept prior
+    
+    linear_combination = pyro.sample("b", intercept_prior)
+    #Define our coefficient prior
+    
+    beta_coef = pyro.sample("a", coefficient_prior)
+    #generate random error for age
+    N = X.shape[0]
+    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
+    x_noisy = X[:, 0]+x_noise
+    
+    #calculate mean prediction
+    mean = linear_combination + (x_noisy * beta_coef)
+    with pyro.plate("data", y.shape[0]):        
+        # Condition the expected mean on the observed target y
+        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+
+#--------------------------------------3.2 Modelling Choice GP module-----------------------------------------------
+
+
+
+def cal_geo_dist2(X,Z=None):
+    '''
+    A function to calculate the squared distance matrix between each pair of X.
+    The function takes a PyTorch tensor of X and returns a matrix
+    where matrix[i, j] represents the spatial distance between the i-th and j-th X.
+    
+    -------Inputs-------
+    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+    R: approximate radius of earth in km
+    
+    -------Outputs-------
+    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
+    '''
+    if Z is None:
+        Z = X
+
+    # Convert coordinates to radians
+    X = torch.tensor(X)
+    Z = torch.tensor(Z)
+    X_coordinates_rad = torch.deg2rad(X)
+    Z_coordinates_rad = torch.deg2rad(Z)
+    
+    # Extract latitude and longitude tensors
+    X_latitudes_rad = X_coordinates_rad[:, 0]
+    X_longitudes_rad = X_coordinates_rad[:, 1]
+
+    Z_latitudes_rad = Z_coordinates_rad[:, 0]
+    Z_longitudes_rad = Z_coordinates_rad[:, 1]
+
+        # Calculate differences in latitude and longitude
+    dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
+    dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
+    # Apply Haversine formula
+    a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+
+    return c**2
+
+#-------------------------Define Spatio-temporal GP kernels-------------------------
+
+def _torch_sqrt(x, eps=1e-12):
+    """
+    A convenient function to avoid the NaN gradient issue of :func:`torch.sqrt`
+    at 0.
+    """
+    # Ref: https://github.com/pytorch/pytorch/issues/2421
+    return (x + eps).sqrt()
+
+
+class Isotropy(Kernel):
+    """
+    Base class for a family of isotropic covariance kernels which are functions of the
+    distance :math:`|x-z|/l`, where :math:`l` is the length-scale parameter.
+
+    By default, the parameter ``lengthscale`` has size 1. To use the isotropic version
+    (different lengthscale for each dimension), make sure that ``lengthscale`` has size
+    equal to ``input_dim``.
+
+    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False,sp=False):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+        if geo==False:
+            lengthscale = torch.tensor(1.0) if lengthscale is None else lengthscale
+            self.lengthscale = PyroParam(lengthscale, constraints.positive)
+        else:
+            s_lengthscale = torch.tensor(1.0) if s_lengthscale is None else s_lengthscale
+            self.s_lengthscale = PyroParam(s_lengthscale, constraints.positive)
+        if sp == True:
+            self.lengthscale = torch.tensor(1.0) 
+            self.s_lengthscale = torch.tensor(1.0) 
+            
+        self.geo= geo
+        self.sp = sp
+    def _square_scaled_dist(self, X, Z=None):
+        """
+        Returns :math:`\|\frac{X-Z}{l}\|^2`.
+        """
+        if Z is None:
+            Z = X
+        X = self._slice_input(X)
+        Z = self._slice_input(Z)
+        if X.size(1) != Z.size(1):
+            raise ValueError("Inputs must have the same number of features.")
+
+        scaled_X = X / self.lengthscale
+        scaled_Z = Z / self.lengthscale
+        X2 = (scaled_X**2).sum(1, keepdim=True)
+        Z2 = (scaled_Z**2).sum(1, keepdim=True)
+        XZ = scaled_X.matmul(scaled_Z.t())
+        r2 = X2 - 2 * XZ + Z2.t()
+        return r2.clamp(min=0)
+
+    def _scaled_dist(self, X, Z=None):
+        """
+        Returns :math:`\|\frac{X-Z}{l}\|`.
+        """
+        return _torch_sqrt(self._square_scaled_dist(X, Z))
+
+    def _diag(self, X):
+        """
+        Calculates the diagonal part of covariance matrix on active features.
+        """
+        return self.variance.expand(X.size(0))
+
+    def _scaled_geo_dist2(self,X,Z=None):
+        '''
+        A function to calculate the squared distance matrix between each pair of X.
+        The function takes a PyTorch tensor of X and returns a matrix
+        where matrix[i, j] represents the spatial distance between the i-th and j-th X.
+        
+        -------Inputs-------
+        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+        R: approximate radius of earth in km
+        
+        -------Outputs-------
+        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
+        '''
+        if Z is None:
+            Z = X
+
+        # Convert coordinates to radians
+        X = torch.tensor(X)
+        Z = torch.tensor(Z)
+        X_coordinates_rad = torch.deg2rad(X)
+        Z_coordinates_rad = torch.deg2rad(Z)
+        
+        # Extract latitude and longitude tensors
+        X_latitudes_rad = X_coordinates_rad[:, 0]
+        X_longitudes_rad = X_coordinates_rad[:, 1]
+
+        Z_latitudes_rad = Z_coordinates_rad[:, 0]
+        Z_longitudes_rad = Z_coordinates_rad[:, 1]
+
+         # Calculate differences in latitude and longitude
+        dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
+        dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
+        # Apply Haversine formula
+        a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
+        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+
+        # Calculate the distance matrix
+        distance_matrix = c / self.s_lengthscale
+
+        return distance_matrix**2
+    
+    def _scaled_geo_dist(self, X, Z=None):
+        """
+        Returns :geo distance between X
+        """
+        return _torch_sqrt(self._scaled_geo_dist2(X, Z))
+
+class RBF(Isotropy):
+    r"""
+    Implementation of Radial Basis Function kernel:
+
+        :math:`k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).`
+
+    .. note:: This kernel also has name `Squared Exponential` in literature.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
+        super().__init__(input_dim,variance, lengthscale,s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        
+        if diag:
+            return self._diag(X)
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            return self.variance * torch.exp(-0.5 * r2)
+        else:
+            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return torch.exp(-0.5 * r2)*dis_fun
+        
+class RationalQuadratic(Isotropy):
+    r"""
+    Implementation of RationalQuadratic kernel:
+
+        :math:`k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}
+        \right)^{-\alpha}.`
+
+    :param torch.Tensor scale_mixture: Scale mixture (:math:`\alpha`) parameter of this
+        kernel. Should have size 1.
+    """
+
+    def __init__(
+        self,
+        input_dim,
+        variance=None,
+        lengthscale=None,
+        s_lengthscale=None,
+        scale_mixture=None,
+        active_dims=None,
+        geo=False
+    ):
+        super().__init__(input_dim, variance, lengthscale,s_lengthscale, active_dims,geo)
+
+        if scale_mixture is None:
+            scale_mixture = torch.tensor(1.0)
+        self.scale_mixture = PyroParam(scale_mixture, constraints.positive)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            return self.variance * (1 + (0.5 / self.scale_mixture) * r2).pow(
+            -self.scale_mixture
+        )
+        else:
+            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
+            return (1 + (0.5 / self.scale_mixture) * r2).pow(
+            -self.scale_mixture
+            )           
+        
+
+
+
+class Exponential(Isotropy):
+    r"""
+    Implementation of Exponential kernel:
+
+        :math:`k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None,active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            return self.variance * torch.exp(-r)
+        else:
+            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return torch.exp(-r) * dis_fun
+        
+
+class Matern21(Isotropy):
+    r"""
+    Implementation of Matern21 kernel:
+
+        :math:`k(x, z) = \sigma^2\exp\left(- \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            return self.variance * torch.exp(-r)
+        
+        else:
+            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            
+            return torch.exp(-r)*dis_fun
+        
+
+class Matern32(Isotropy):
+    r"""
+    Implementation of Matern32 kernel:
+
+        :math:`k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)
+        \exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            sqrt3_r = 3**0.5 * r
+            return self.variance * (1 + sqrt3_r) * torch.exp(-sqrt3_r)
+        else:
+            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            sqrt3_r = 3**0.5 * r
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return (1 + sqrt3_r) * torch.exp(-sqrt3_r) * dis_fun
+        
+
+
+
+class Matern52(Isotropy):
+    r"""
+    Implementation of Matern52 kernel:
+
+        :math:`k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times
+        \frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).`
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+
+        if self.geo==False:
+            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            r = _torch_sqrt(r2)
+            sqrt5_r = 5**0.5 * r
+            return self.variance * (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
+        else:
+            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
+            r = _torch_sqrt(r2)
+            sqrt5_r = 5**0.5 * r
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r) * dis_fun
+    
+class WhiteNoise(Isotropy):
+    r"""
+    Implementation of WhiteNoise kernel:
+
+        :math:`k(x, z) = \sigma^2 \delta(x, z),`
+
+    where :math:`\delta` is a Dirac delta function.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False,sp=False):
+        super().__init__(input_dim, variance, lengthscale, s_lengthscale, active_dims,geo,sp)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+        
+        if Z is None: Z=X
+        
+        if self.sp==True:
+            tem_delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
+            sp_delta_fun = (self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4) & torch.outer(X[:,2]<360,Z[:,2]<360)
+
+            return self.variance * (tem_delta_fun * sp_delta_fun).double()
+        
+        if self.geo==True:
+            delta_fun = self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4
+            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+
+            return self.variance * delta_fun.double() * dis_fun
+        
+        if self.geo==False:
+            delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
+            return self.variance * delta_fun.double()
+
+
+
+#--------------------------------------4. Optimization Choice module-----------------------------------------------
+
+def SVI_optm(gpr,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100):
+    '''
+    A funciton to optimize the hyperparameters of a GP model using SVI
+
+    ---------Inputs-----------
+    gpr: a GP model defined by pyro GPR regression
+    num_iteration: number of iterations for the optimization
+    lr: learning rate for the optimization
+    decay_r: decay rate for the learning rate
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+
+    ---------Outputs-----------
+    gpr: a GP model with optimized hyperparameters
+    track: a dictionary of loss
+    '''
+    
+    #clear the param store
+    pyro.clear_param_store()
+    #convert the model to double precision
+    gpr = gpr.double()
+    #define the optimiser
+    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
+
+    #define the loss function
+    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+    #do the optimisation
+    track_list = []
+
+    for i in tqdm(range(num_iteration)):
+        scheduler.step()
+        optimizer.zero_grad()
+        loss = loss_fn(gpr.model, gpr.guide)
+        loss.backward()
+        optimizer.step()
+        gpr.set_mode("guide")
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
+    
+    #generate columns names for the track list
+    col_name = ['loss' ]
+
+    for i in (dict(pyro.get_param_store()).keys()):
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
+    #convert the track list to a dataframe
+    track_list=pd.DataFrame(track_list,columns=col_name)
+
+    return gpr,track_list
+
+
+def SVI_NI_optm(gpr,x_sigma,num_iteration=1000,lr=0.05,decay_r = 1,step_size=100,gpu=False):
+    '''
+    A funciton to optimize the hyperparameters of a GP model using SVI
+
+    ---------Inputs-----------
+    gpr: a GP model defined by pyro GPR regression
+    x_sigma: one sigma uncertainty for input data
+    num_iteration: number of iterations for the optimization
+    lr: learning rate for the optimization
+    step_size: step size for the learning rate to decay. 
+    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+    gpu: whether use gpu to accelerate training 
+    ---------Outputs-----------
+    gpr: a GP model with optimized hyperparameters
+    track: a dictionary of loss
+    '''
+    
+    #clear the param store
+    pyro.clear_param_store()
+    #convert the model to double precision
+    gpr = gpr.double()
+    #define the optimiser
+    optimizer = torch.optim.Adam(gpr.parameters(), lr=lr)
+    #define the learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=decay_r)
+    #define the loss function
+    loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+    #do the optimisation
+    track_list = []
+    N = len(gpr.X)
+
+    if gpr.noise.dim()==1:
+        y_sigma = gpr.noise**0.5
+    elif gpr.noise.dim()==2:
+        y_sigma = gpr.noise.view(-1)[:: N + 1]**0.5
+
+    for i in tqdm(range(num_iteration)):
+        #update vertical noise based on gradient
+        if gpu:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
+        else:
+            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
+        y_mean, _ = gpr(x_test.double(), full_cov=False)
+        y_mean.sum().backward(retain_graph=True)
+        if gpu:
+            y_rate = x_test.grad.cuda()
+        else:
+            y_rate = x_test.grad
+        if y_rate.ndim>1: y_rate = y_rate[:,0]
+        new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
+
+        if gpr.noise.dim()==1:
+            gpr.noise = torch.tensor(new_sigma**2)
+        elif gpr.noise.dim()==2:
+            gpr.noise.view(-1)[:: N + 1] = torch.tensor(new_sigma**2)
+
+        scheduler.step()
+        optimizer.zero_grad()
+        loss = loss_fn(gpr.model, gpr.guide)
+        loss.backward()
+        optimizer.step()
+        gpr.set_mode("guide")
+        tem_para =  []
+        for i2 in pyro.get_param_store().values():
+            if i2.numel()==1:
+                tem_para.append(i2.item())
+            else:
+                for i3 in i2:
+                    tem_para.append(i3.item())
+        track_list.append([loss.item(),*tem_para])
+    
+    #generate columns names for the track list
+    col_name = ['loss' ]
+
+    for i in (dict(pyro.get_param_store()).keys()):
+        if pyro.get_param_store()[i].numel() ==1:
+            col_name.append(i[7:].replace('_map',''))
+        else:
+            for i2 in range(pyro.get_param_store()[i].numel()):
+                col_name.append(i[7:].replace('_map','')+'_'+str(i2))
+    #convert the track list to a dataframe
+    track_list=pd.DataFrame(track_list,columns=col_name)
+
+    return gpr,track_list
+
+
+def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+    '''
+    A function to run NUTS MCMC for GP regression model
+
+    ----------Inputs---------
+    gpr: a pyro GP regression model
+    num_samples: number of samples to draw from the posterior
+    warmup_steps: number of warmup steps for NUTS
+    target_accept_prob: target acceptance probability for NUTS
+    print_stats: whether to print the states of the model
+
+    ----------Outputs---------
+    mcmc: a pyro MCMC object
+    
+    '''
+    hmc_kernel = NUTS(gpr.model,target_accept_prob=target_accept_prob)
+    mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
+    mcmc.run()
+    if print_stats:
+        for name, value in mcmc.get_samples().items():
+            if 'kernel' in name:
+                
+                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
+                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
+                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
+
+    return mcmc
+
+
+
+def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
+    '''
+    A function to optimize the pyro model
+
+    ------------Inputs--------------
+    model: PaleoSTeHM model
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples)
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    *args: prior distributions for the model
+    lr: learning rate
+    number_of_steps: number of steps to train the model
+
+    ------------Outputs--------------
+    guide: the optimized model
+    losses: the loss of the model during training
+    '''
+
+    #-------Construct model---------
+    model = model
+    guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
+
+    #-------Train the model---------
+    pyro.clear_param_store()
+    losses = []
+    adam = pyro.optim.Adam({"lr":lr})
+    svi = SVI(model, guide, adam, loss=Trace_ELBO())
+    for j in tqdm(range(number_of_steps)):
+        # calculate the loss and take a gradient step
+        loss = svi.step(X, y, x_sigma,y_sigma,*args)
+        losses.append(loss/len(X))
+    return guide,losses
+
+
+#--------------------------------------5. Post-Processing module-----------------------------------------------
+
+
+def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
+    '''
+    A function to prediction posterior mean and covariance of GP regression model
+
+    ----------Inputs----------
+    input_gpr: a pyro GP regression model
+    mcmc: a pyro MCMC object
+    Xnew: a torch tensor of new input data
+
+    ----------Outputs----------
+    full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
+    full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
+    full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model
+    '''
+    
+    def predictive(X_new,gpr):
+        y_loc, y_cov = gpr(X_new,full_cov=True)
+        pyro.sample("y", dist.Delta(y_loc))
+        pyro.sample("y_cov", dist.Delta(y_cov))
+        
+    Xnew = torch.tensor(Xnew).double()
+    thin_mcmc = mcmc.get_samples()
+    for i in thin_mcmc:
+        thin_mcmc[i] = thin_mcmc[i][::thin_index]
+
+    posterior_predictive = Predictive(predictive, thin_mcmc)
+    full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
+    full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
+    full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
+    full_bayes_std_mean = np.diag(full_bayes_cov_mean)**0.5
+    likelihood_list = []
+    noise = np.ones(len(input_gpr.X))*input_gpr.noise.detach().numpy()
+
+    for i in range(len(full_bayes_mean)):
+        f = interpolate.interp1d(Xnew,full_bayes_mean[i])
+        likelihood_list.append(cal_likelihood(input_gpr.y.detach().numpy(),
+                                              noise**0.5,
+                                              f(input_gpr.X)))
+        
+    return full_bayes_mean_mean,full_bayes_cov_mean,full_bayes_std_mean,likelihood_list
+
+
+def gen_pred_matrix(age,lat,lon):
+    '''
+    A function to generate an input matrix for Spatio-temporal GP model
+
+    ----------Inputs----------------
+    age: a numpy array, age of the prediction points
+    lat: a numpy array, latitude of the prediction points
+    lon: a numpy array, longitude of the prediction points
+
+    ----------Outputs----------------
+    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model
+    '''
+    age = np.array(age)
+    lat = np.array(lat)
+    lon = np.array(lon)
+
+    lon_matrix,lat_matrix,age_matrix = np.meshgrid(lon,lat,age)
+    
+    output_matrix = torch.tensor(np.hstack([age_matrix.flatten()[:,None],lat_matrix.flatten()[:,None],lon_matrix.flatten()[:,None]])).double()
+    return output_matrix
+
+def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
+    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+    GP).
+    ------------------Inputs----------------------------
+    test_X: an array of test input values
+    cov_matrix: full covariance matrix from GP regression
+    mean_rsl: GP regression produced mean RSL prediction
+    difftimestep: time period for averaging 
+    
+    ------------------Outputs---------------------------
+    difftimes: time series for the outputs
+    rate: averaged sea-level change rate
+    rate_sd: averaged sea-level change rate standard deviation
+    '''
+    
+    Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
+    Mdiff = Mdiff * np.equal.outer(np.ones(len(test_X))*1, np.ones(len(test_X)))
+    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
+    Mdiff = Mdiff[sub, :]
+    difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
+    Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
+    rate_sd = np.sqrt(np.diag(Mdiff @ cov_matrix @ Mdiff.T))
+    rate = Mdiff @ mean_rsl
+    
+    return difftimes,rate, rate_sd
+
+
+def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
+    N = len(gpr.X)
+    M = pred_matrix.size(0)
+    f_loc = gpr.y - gpr.mean_function(gpr.X)
+    latent_shape = f_loc.shape[:-1]
+    loc_shape = latent_shape + (M,)
+    f_loc = f_loc.permute(-1, *range(len(latent_shape)))
+    f_loc_2D = f_loc.reshape(N, -1)
+    loc_shape = latent_shape + (M,)
+    v_2D = f_loc_2D
+    Kff = gpr.kernel(gpr.X).contiguous()
+    Kff +=gpr.noise
+    Kff.view(-1)[:: N + 1] += gpr.jitter    # add noise to the diagonal
+    Lff = torch.linalg.cholesky(Kff)
+    
+    output = []
+    for kernel in kernels:
+        Kfs = kernel(gpr.X, pred_matrix)
+        pack = torch.cat((f_loc_2D, Kfs), dim=1)
+        Lffinv_pack = pack.triangular_solve(Lff, upper=False)[0]
+        W = Lffinv_pack[:, f_loc_2D.size(1):f_loc_2D.size(1) + M].t()
+        Qss = W.matmul(W.t())
+        v_2D = Lffinv_pack[:, :f_loc_2D.size(1)]
+        loc = W.matmul(v_2D).t().reshape(loc_shape)
+        Kss = kernel(pred_matrix)
+        cov = Kss - Qss
+        output.append((loc, cov))
+        
+    return output
+
+def cal_misfit(y,y_sigma,prediction):
+    
+    return np.mean(np.sqrt(((y-prediction)/y_sigma)**2))
+
+def cal_likelihood(y,y_std,pred):
+    '''A function used to calcualte log likelihood function for a given prediction.
+    This calculation only considers uncertainty in y axis. 
+    
+    ------------Inputs------------------
+    y: reconstructed rsl
+    y_std: standard deviation of reconstructed rsl
+    pred: mean predction of rsl
+    
+    ------------Outputs------------------
+    likelihood: mean likelihood of prediction fit to observation
+    '''
+    from scipy.stats import norm
+
+    log_likelihood = 1 
+    for i in range(len(y)):
+        
+        norm_dis = norm(y[i], y_std[i])
+        log_likelihood+=np.log(norm_dis.pdf(pred[i]))
+    
+    return log_likelihood
+
+def cal_MSE(y,yhat):
+    '''
+    A function to calculate MSE coefficient
+    '''
+    MSE = np.sum((yhat-y)**2)/len(y)
+    return MSE
+
+
+def cal_wMSE(y,yhat,y_sigma):
+    '''
+    A function to calculate weighted MSE coefficient
+    '''
+    wMSE = np.sum((yhat-y)**2/y_sigma**2)/len(y)
+    return wMSE
+    
+
     
