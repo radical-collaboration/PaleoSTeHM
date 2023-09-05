@@ -52,7 +52,7 @@ def plot_uncertainty_boxes(x, y, x_error, y_error,ax=None):
     for i in range(len(x)):
 
         ax.add_patch(plt.Rectangle((x[i] - x_error[i], y[i] - y_error[i]), 2 * x_error[i], 2*  y_error[i], 
-                                     fill=False, edgecolor='red', linewidth=3,alpha=0.5))
+                                     fill=True, fc=(1,0.82,0.86,0.2),ec=(0.6,0,0,1), linewidth=3))
 #     ax.set_xlim(np.min(x)-x_error[np.argmin(x)]*5,np.max(x)+x_error[np.argmax(x)]*5)
 #     ax.set_ylim(np.min(y)-y_error[np.argmin(y)]*5,np.max(y)+y_error[np.argmax(y)]*5)
     ax.set_xlabel('Age (CE)')
@@ -592,7 +592,7 @@ class GPRegression_V(GPModel):
         :param bool full_cov: A flag to decide if we want to predict full covariance
             matrix or just variance.
         :param bool noiseless: A flag to decide if we want to include noise in the
-            prediction output or not.
+            prediction output or notest_cov[i:i+1]t.
         :returns: loc and covariance matrix (or variance) of :math:`p(f^*(X_{new}))`
         :rtype: tuple(torch.Tensor, torch.Tensor)
         """
@@ -601,8 +601,11 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        Kff = Kff + self.noise
-        Kff.view(-1)[:: N + 1] += self.jitter 
+        if self.noise.dim() ==1:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise
+        elif self.noise.dim() ==2:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter 
         # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
         Lff = torch.linalg.cholesky(Kff)
 
@@ -1082,8 +1085,6 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
 #--------------------------------------3.2 Modelling Choice GP module-----------------------------------------------
-
-
 
 def cal_geo_dist2(X,Z=None):
     '''
@@ -1778,7 +1779,18 @@ def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
     return difftimes,rate, rate_sd
 
 
-def decompose_kernels(gpr,pred_matrix,kernels,noiseless=True):
+def decompose_kernels(gpr,pred_matrix,kernels):
+    '''
+    A function to calculate different kernels contribution to final prediction
+
+    ------------------Inputs----------------------------
+    gpr: an optimized pyro GP regression model
+    pred_matrix: a torch tensor of prediction matrix containing the data points for prediction
+    kernels: a list of pyro kernels for decomposition
+
+    ------------------Outputs---------------------------
+    output: a list of tuples, each tuple contains the mean and covariance of the prediction for each kernel 
+    '''
     N = len(gpr.X)
     M = pred_matrix.size(0)
     f_loc = gpr.y - gpr.mean_function(gpr.X)
