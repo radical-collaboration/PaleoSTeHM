@@ -44,7 +44,7 @@ def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None):
     return ax
 
 def plot_tem_regression(data_age, data_rsl, data_age_sigma, data_rsl_sigma, mean_rsl_age, mean_rsl,
-                        rsl_sd, rsl_rate_age, mean_rate, rate_sd, color='C0', axes=None, save=False):
+                        rsl_sd, rsl_rate_age, mean_rate, rate_sd, color='C0', axes=None):
     '''
     A function to create matplotlib plot for temporal regression results.
 
@@ -147,7 +147,6 @@ def plot_tem_regression(data_age, data_rsl, data_age_sigma, data_rsl_sigma, mean
     ax.set_ylabel('Residual (mm)');
     plt.show()
 
-    if save: plt.savefig('../Figures/Temp_Regreesion.png', dpi=300)
     return axes
 
 def plot_loss(loss):
@@ -156,7 +155,7 @@ def plot_loss(loss):
     plt.xlabel("Iterations")
     _ = plt.ylabel("Loss")  # supress output text
 
-def plot_spatial_rsl_single(pred_matrix, y_mean, y_var, cmap='viridis', save_fig=False):
+def plot_spatial_rsl_single(pred_matrix, y_mean, y_var, cmap='viridis'):
     '''
     A function to plot the spatial RSL map and uncertainty map
 
@@ -181,10 +180,9 @@ def plot_spatial_rsl_single(pred_matrix, y_mean, y_var, cmap='viridis', save_fig
     fig = plt.figure(figsize=(20, 10))
 
     ax2 = fig.add_subplot(1,
-                            2,
-                            1,
-                            projection=ccrs.PlateCarree()
-                            )
+                          2,
+                          1,
+                          projection=ccrs.PlateCarree())
 
     ax2.add_feature(cartopy.feature.LAND,
                     edgecolor='black',
@@ -218,11 +216,10 @@ def plot_spatial_rsl_single(pred_matrix, y_mean, y_var, cmap='viridis', save_fig
     cbar.set_label('RSL (m)')
     ax2.set_title('{:5.1f} CE'.format(pred_matrix[0, 0]))
 
-    ax2 = fig.add_subplot(nrows=1,
-                            ncols=2,
-                            index=2,
-                            projection=ccrs.PlateCarree()
-                            )
+    ax2 = fig.add_subplot(1,
+                          2,
+                          2,
+                          projection=ccrs.PlateCarree())
 
     ax2.set_extent([np.min(pred_matrix[:, 2]),
                     np.max(pred_matrix[:, 2]),
@@ -259,10 +256,8 @@ def plot_spatial_rsl_single(pred_matrix, y_mean, y_var, cmap='viridis', save_fig
     cbar.set_label('RSL uncertainty (m)')
     ax2.set_title('{:5.1f} CE'.format(pred_matrix[0, 0]));
 
-    if save_fig: plt.savefig('../Figures/Temp_Spatial_RSL.png', dpi=300)
-
 def plot_spatial_rsl_range(pred_matrix, y_mean, y_var, rsl_lon, rsl_lat, rsl_age, rsl_region, cmap='viridis',
-                            plot_site=False, save_fig=False):
+                            plot_site=False):
     '''
     A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps
 
@@ -309,11 +304,10 @@ def plot_spatial_rsl_range(pred_matrix, y_mean, y_var, rsl_lon, rsl_lat, rsl_age
 
     fig = plt.figure(figsize=(30, 10))
     # -----------------plot the mean RSL map-----------------
-    ax2 = fig.add_subplot(nrows=1,
-                            ncols=3,
-                            index=1,
-                            projection=ccrs.PlateCarree()
-                            )
+    ax2 = fig.add_subplot(1,
+                          3,
+                          1,
+                          projection=ccrs.PlateCarree())
 
     ax2.add_feature(cartopy.feature.LAND,
                     edgecolor='black',
@@ -351,11 +345,10 @@ def plot_spatial_rsl_range(pred_matrix, y_mean, y_var, rsl_lon, rsl_lat, rsl_age
     rsl_rate = (y_mean[0::len(time_mat)] - y_mean[len(time_mat) - 1::len(time_mat)]).detach().numpy().reshape(
         [len(lat_matrix), len(lon_matrix)]) / (time_mat[0] - time_mat[-1])
 
-    ax2 = fig.add_subplot(nrows=1,
-                            ncols=3,
-                            index=2,
-                            projection=ccrs.PlateCarree()
-                            )
+    ax2 = fig.add_subplot(1,
+                          3,
+                          2,
+                          projection=ccrs.PlateCarree())
 
     ax2.set_extent([np.min(pred_matrix[:, 2]),
                     np.max(pred_matrix[:, 2]),
@@ -392,11 +385,10 @@ def plot_spatial_rsl_range(pred_matrix, y_mean, y_var, rsl_lon, rsl_lat, rsl_age
     # -----------------plot the RSL rate map-----------------
     time_index = (rsl_age >= min_time) & (rsl_age <= max_time)
 
-    ax2 = fig.add_subplot(nrows=1,
-                            ncols=3,
-                            index=3,
-                            projection=ccrs.PlateCarree()
-                            )
+    ax2 = fig.add_subplot(1,
+                          3,
+                          3,
+                          projection=ccrs.PlateCarree())
 
     sd_rsl = np.zeros([len(lat_matrix),
                         len(lon_matrix)]
@@ -492,12 +484,14 @@ def plot_spatial_rsl_range(pred_matrix, y_mean, y_var, rsl_lon, rsl_lat, rsl_age
 
     ax2.set_title('{:5.1f} to {:5.3f} CE'.format(min_time, max_time));
 
-    if save_fig:
-        plt.savefig('RSL_map_{}_{}.png'.format(min_time, max_time), dpi=300, bbox_inches='tight')
+    return fig
 
 def plot_track_list(track_list):
     '''
     A function to plot the track_list generated from SVI_optm function
+
+    ------Inputs------
+    track_list: a dictionary containing the name and values of tracking variables
     '''
 
     if track_list.shape[1] % 3 == 0:

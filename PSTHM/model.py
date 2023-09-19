@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.distributions as torchdist
 from torch.distributions import constraints
-import pandas as pd
 import pyro
 import pyro.distributions as dist
 from pyro.contrib.gp.models.model import GPModel
@@ -12,12 +11,9 @@ from pyro.contrib.gp.util import conditional
 from pyro.nn.module import PyroParam, pyro_method
 from pyro.util import warn_if_nan
 from scipy import interpolate
-from tqdm.notebook import tqdm
-import torch
-from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 
-
+#----------------------Define Classes---------------------------
 class GPRegression_V(GPModel):
     r"""
     Gaussian Process Regression model.
@@ -89,7 +85,15 @@ class GPRegression_V(GPModel):
             noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            if  noise.dim() ==1:
+            assert isinstance(
+            noise, torch.Tensor
+        ), "noise needs to be a torch Tensor instead of a {}".format(type(noise))
+            
+            if noise.dim() ==0:
+                noise_store = torch.zeros(len(self.X),len(self.X))
+                noise_store.view(-1)[:: len(self.X) + 1] += noise
+                self.noise = noise_store.double() 
+            elif  noise.dim() ==1:
                 noise_store = torch.zeros(len(self.X),len(self.X))
                 noise_store.view(-1)[:: len(self.X) + 1] += noise 
                 self.noise = noise_store.double()
@@ -102,9 +106,11 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X)
-        Kff = Kff + self.noise
-        Kff.view(-1)[:: N + 1] += self.jitter 
-#         Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
+        if self.noise.dim()>1:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter 
+        else:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
 
         Lff = torch.linalg.cholesky(Kff)
 
@@ -154,12 +160,11 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        if self.noise.dim() ==1:
-            Kff.view(-1)[:: N + 1] += self.jitter + self.noise
-        elif self.noise.dim() ==2:
+        if self.noise.dim()>1:
             Kff = Kff + self.noise
             Kff.view(-1)[:: N + 1] += self.jitter 
-        # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
+        else:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         y_residual = self.y - self.mean_function(self.X)
@@ -182,83 +187,6 @@ class GPRegression_V(GPModel):
             cov = cov + self.noise.abs()
 
         return loc + self.mean_function(Xnew), cov
-
-
-    def iter_sample(self, noiseless=True):
-        r"""
-        Iteratively constructs a sample from the Gaussian Process posterior.
-
-        Recall that at test input points :math:`X_{new}`, the posterior is
-        multivariate Gaussian distributed with mean and covariance matrix
-        given by :func:`forward`.
-
-        This method samples lazily from this multivariate Gaussian. The advantage
-        of this approach is that later query points can depend upon earlier ones.
-        Particularly useful when the querying is to be done by an optimisation
-        routine.
-
-        .. note:: The noise parameter ``noise`` (:math:`\epsilon`) together with
-            kernel's parameters have been learned from a training procedure (MCMC or
-            SVI).
-
-        :param bool noiseless: A flag to decide if we want to add sampling noise
-            to the samples beyond the noise inherent in the GP posterior.
-        :returns: sampler
-        :rtype: function
-        """
-        noise = self.noise.detach()
-        X = self.X.clone().detach()
-        y = self.y.clone().detach()
-        N = X.size(0)
-        Kff = self.kernel(X).contiguous()
-        Kff.view(-1)[:: N + 1] += noise  # add noise to the diagonal
-
-        outside_vars = {"X": X, "y": y, "N": N, "Kff": Kff}
-
-        def sample_next(xnew, outside_vars):
-            """Repeatedly samples from the Gaussian process posterior,
-            conditioning on previously sampled values.
-            """
-            warn_if_nan(xnew)
-
-            # Variables from outer scope
-            X, y, Kff = outside_vars["X"], outside_vars["y"], outside_vars["Kff"]
-
-            # Compute Cholesky decomposition of kernel matrix
-            Lff = torch.linalg.cholesky(Kff)
-            y_residual = y - self.mean_function(X)
-
-            # Compute conditional mean and variance
-            loc, cov = conditional(
-                xnew, X, self.kernel, y_residual, None, Lff, False, jitter=self.jitter
-            )
-            if not noiseless:
-                cov = cov + noise
-
-            ynew = torchdist.Normal(
-                loc + self.mean_function(xnew), cov.sqrt()
-            ).rsample()
-
-            # Update kernel matrix
-            N = outside_vars["N"]
-            Kffnew = Kff.new_empty(N + 1, N + 1)
-            Kffnew[:N, :N] = Kff
-            cross = self.kernel(X, xnew).squeeze()
-            end = self.kernel(xnew, xnew).squeeze()
-            Kffnew[N, :N] = cross
-            Kffnew[:N, N] = cross
-            # No noise, just jitter for numerical stability
-            Kffnew[N, N] = end + self.jitter
-            # Heuristic to avoid adding degenerate points
-            if Kffnew.logdet() > -15.0:
-                outside_vars["Kff"] = Kffnew
-                outside_vars["N"] += 1
-                outside_vars["X"] = torch.cat((X, xnew))
-                outside_vars["y"] = torch.cat((y, ynew))
-
-            return ynew
-
-        return lambda xnew: sample_next(xnew, outside_vars)
 
 
 class GPRegression_EIV(GPModel):
@@ -333,9 +261,11 @@ class GPRegression_EIV(GPModel):
         self.y = self.y.double()
 
         if noise is None:
+            noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
             self.noise = noise.double()
+            
     @pyro_method
     def model(self):
         self.set_mode("model")
@@ -348,7 +278,11 @@ class GPRegression_EIV(GPModel):
             X_noisy[:,0] += x_noise
         
         Kff = self.kernel(X_noisy)
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
+        if self.noise.dim()>1:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter 
+        else:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
         zero_loc = X_noisy.new_zeros(X_noisy.size(0))
         f_loc = zero_loc + self.mean_function(X_noisy)
@@ -396,7 +330,11 @@ class GPRegression_EIV(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
+        if self.noise.dim()>1:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter 
+        else:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         y_residual = self.y - self.mean_function(self.X)
@@ -420,6 +358,33 @@ class GPRegression_EIV(GPModel):
 
         return loc + self.mean_function(Xnew), cov
 
+
+
+class GIA_ensemble(Kernel):
+    '''
+    This is a class to define a GIA ensemble model as the mean function for GP
+
+    ------------Inputs--------------
+    GIA_model_interp: a list of interpolation function that can 3D interpolate the 
+    RSL history predicted by a GIA model
+
+    ------------Outputs--------------
+    mean: the prediction of the GIA ensemble model
+    '''
+    def __init__(self,GIA_model_interp,input_dim=1):
+        super().__init__(input_dim)
+        self.GIA_model_interp = GIA_model_interp
+        self.GIA_model_num =len(GIA_model_interp)
+        self.s = PyroParam(torch.tensor(1.0))
+        self.w = PyroParam(torch.ones(self.GIA_model_num))
+        
+    def forward(self, X):
+        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
+        for i in range(self.GIA_model_num):
+            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
+        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
+    
+#----------------------Define Model functions---------------------------
 def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
     '''
     A function to define a change-point model in pyro
@@ -487,6 +452,17 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
 def get_change_point_posterior(guide,sample_number):
+    '''
+    A function to get the posterior samples from the change-point model
+
+    ------------Inputs--------------
+    guide: pyro guide object
+    sample_number: int, number of samples to draw from the posterior
+
+    ------------Outputs--------------
+    output_dict: a dictionary that contains the posterior samples
+    '''
+
     num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
     output_dict = dict()
     output_dict['b'] = np.zeros(sample_number)
@@ -522,6 +498,7 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
     beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
     b: float, the intercept coefficient
     '''
+    
     last_intercept = b
     mean = torch.zeros(new_X.shape[0])
     for i in range(n_cp+1):
@@ -581,32 +558,8 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
-class GIA_ensemble(Kernel):
-    '''
-    This is a class to define a GIA ensemble model as the mean function for GP
-
-    ------------Inputs--------------
-    GIA_model_interp: a list of interpolation function that can 3D interpolate the 
-    RSL history predicted by a GIA model
-
-    ------------Outputs--------------
-    mean: the prediction of the GIA ensemble model
-    '''
-    def __init__(self,GIA_model_interp,input_dim=1):
-        super().__init__(input_dim)
-        self.GIA_model_interp = GIA_model_interp
-        self.GIA_model_num =len(GIA_model_interp)
-        self.s = PyroParam(torch.tensor(1.0))
-        self.w = PyroParam(torch.ones(self.GIA_model_num))
-        
-    def forward(self, X):
-        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
-        for i in range(self.GIA_model_num):
-            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
-        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
     
 
-#THis model can be implemented within a class
 def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     '''
     A function to define a linear model in pyro 
@@ -637,43 +590,4 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
-#--------------------------------------3.2 Modelling Choice GP module-----------------------------------------------
-
-def cal_geo_dist2(X,Z=None):
-    '''
-    A function to calculate the squared distance matrix between each pair of X.
-    The function takes a PyTorch tensor of X and returns a matrix
-    where matrix[i, j] represents the spatial distance between the i-th and j-th X.
-    
-    -------Inputs-------
-    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
-    R: approximate radius of earth in km
-    
-    -------Outputs-------
-    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
-    '''
-    if Z is None:
-        Z = X
-
-    # Convert coordinates to radians
-    X = torch.tensor(X)
-    Z = torch.tensor(Z)
-    X_coordinates_rad = torch.deg2rad(X)
-    Z_coordinates_rad = torch.deg2rad(Z)
-    
-    # Extract latitude and longitude tensors
-    X_latitudes_rad = X_coordinates_rad[:, 0]
-    X_longitudes_rad = X_coordinates_rad[:, 1]
-
-    Z_latitudes_rad = Z_coordinates_rad[:, 0]
-    Z_longitudes_rad = Z_coordinates_rad[:, 1]
-
-        # Calculate differences in latitude and longitude
-    dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
-    dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
-    # Apply Haversine formula
-    a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
-    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-
-    return c**2
 

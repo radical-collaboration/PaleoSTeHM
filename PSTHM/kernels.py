@@ -6,6 +6,74 @@ from pyro.nn.module import PyroParam
 import torch
 from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
+import numpy as np
+import numbers
+
+#some of the kernels here are based on pyro gp kenrels: https://docs.pyro.ai/en/stable/contrib.gp.html
+
+#-------------------------Define kernel operations-------------------------
+
+
+
+class Combination(Kernel):
+    """
+    Base class for kernels derived from a combination of kernels.
+
+    :param Kernel kern0: First kernel to combine.
+    :param kern1: Second kernel to combine.
+    :type kern1: Kernel or numbers.Number
+    """
+
+    def __init__(self, kern0, kern1):
+        if not isinstance(kern0, Kernel):
+            raise TypeError(
+                "The first component of a combined kernel must be a " "Kernel instance."
+            )
+        if not (isinstance(kern1, Kernel) or isinstance(kern1, numbers.Number)):
+            raise TypeError(
+                "The second component of a combined kernel must be a "
+                "Kernel instance or a number."
+            )
+
+        active_dims = set(kern0.active_dims)
+        if isinstance(kern1, Kernel):
+            active_dims |= set(kern1.active_dims)
+        active_dims = sorted(active_dims)
+        input_dim = len(active_dims)
+        super().__init__(input_dim, active_dims)
+
+        self.kern0 = kern0
+        self.kern1 = kern1
+
+
+
+class Sum(Combination):
+    """
+    Returns a new kernel which acts like a sum/direct sum of two kernels.
+    The second kernel can be a constant.
+    """
+
+    def forward(self, X, Z=None, diag=False):
+        if isinstance(self.kern1, Kernel):
+            return self.kern0(X, Z, diag=diag) + self.kern1(X, Z, diag=diag)
+        else:  # constant
+            return self.kern0(X, Z, diag=diag) + self.kern1
+
+
+
+class Product(Combination):
+    """
+    Returns a new kernel which acts like a product/tensor product of two kernels.
+    The second kernel can be a constant.
+    """
+
+    def forward(self, X, Z=None, diag=False):
+        if isinstance(self.kern1, Kernel):
+            return self.kern0(X, Z, diag=diag) * self.kern1(X, Z, diag=diag)
+        else:  # constant
+            return self.kern0(X, Z, diag=diag) * self.kern1
+
+
 
 #-------------------------Define Spatio-temporal GP kernels-------------------------
 def _torch_sqrt(x, eps=1e-12):
@@ -16,6 +84,24 @@ def _torch_sqrt(x, eps=1e-12):
     # Ref: https://github.com/pytorch/pytorch/issues/2421
     return (x + eps).sqrt()
 
+def check_geo_dim(X):
+    '''
+    A function to check if the dimension of X is correct.
+
+    -------Inputs-------
+    X: PyTorch tensor input for Gaussian Process
+    '''
+
+    if (X.dim()!=2) or (X.shape[1]!=3):
+        raise ValueError("The dimension of input X is not correct. If you use a spatio kernel, X should be in shape of n x 3: [age, lat, lon].")
+
+def check_pseudo(X,Z):
+    '''
+    A function to make sure there's no correlation between pseudo data and real data.
+    '''
+    check_geo_dim(X)
+    dis_fun = torch.outer(torch.tensor(X[:,1]).abs()<361,torch.tensor(Z[:,1]).abs()<361).double()
+    return dis_fun
 
 class Isotropy(Kernel):
     """
@@ -46,10 +132,13 @@ class Isotropy(Kernel):
             
         self.geo= geo
         self.sp = sp
+
     def _square_scaled_dist(self, X, Z=None):
         """
         Returns :math:`\|\frac{X-Z}{l}\|^2`.
         """
+        if X.dim() >1: X = X[:,0]
+
         if Z is None:
             Z = X
         X = self._slice_input(X)
@@ -90,8 +179,9 @@ class Isotropy(Kernel):
         -------Outputs-------
         distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
         '''
-        if Z is None:
-            Z = X
+        if X.dim()==2: X = X[:,1:] #use lat and lon to calculate spatial distance
+        if Z is None: Z = X
+        if Z.dim()==2: Z = Z[:,1:]
 
         # Convert coordinates to radians
         X = torch.tensor(X)
@@ -143,12 +233,13 @@ class RBF(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            r2 = self._square_scaled_dist(X, Z)
             return self.variance * torch.exp(-0.5 * r2)
         else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
-            #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            check_geo_dim(X)
+            r2 = self._scaled_geo_dist2(X,Z)
+            #no correlation for points with latitude larger than 360, which suppose to be psuedo data
+            dis_fun = check_pseudo(X,Z)
 
             return torch.exp(-0.5 * r2)*dis_fun
         
@@ -186,12 +277,13 @@ class RationalQuadratic(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            r2 = self._square_scaled_dist(X, Z)
             return self.variance * (1 + (0.5 / self.scale_mixture) * r2).pow(
             -self.scale_mixture
         )
         else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
+            check_geo_dim(X)
+            r2 = self._scaled_geo_dist2(X,Z)
             return (1 + (0.5 / self.scale_mixture) * r2).pow(
             -self.scale_mixture
             )           
@@ -216,12 +308,13 @@ class Exponential(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            r = self._scaled_dist(X, Z)
             return self.variance * torch.exp(-r)
         else:
-            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            check_geo_dim(X)
+            r = self._scaled_geo_dist(X,Z)
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            dis_fun = check_pseudo(X,Z)
 
             return torch.exp(-r) * dis_fun
         
@@ -243,13 +336,14 @@ class Matern21(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            r = self._scaled_dist(X, Z)
             return self.variance * torch.exp(-r)
         
         else:
-            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            check_geo_dim(X)
+            r = self._scaled_geo_dist(X,Z)
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            dis_fun = check_pseudo(X,Z)
             
             return torch.exp(-r)*dis_fun
         
@@ -272,14 +366,15 @@ class Matern32(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r = self._scaled_dist(X[:,:1], Z[:,:1])
+            r = self._scaled_dist(X, Z)
             sqrt3_r = 3**0.5 * r
             return self.variance * (1 + sqrt3_r) * torch.exp(-sqrt3_r)
         else:
-            r = self._scaled_geo_dist(X[:,1:],Z[:,1:])
+            check_geo_dim(X)
+            r = self._scaled_geo_dist(X,Z)
             sqrt3_r = 3**0.5 * r
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            dis_fun = check_pseudo(X,Z)
 
             return (1 + sqrt3_r) * torch.exp(-sqrt3_r) * dis_fun
         
@@ -304,16 +399,17 @@ class Matern52(Isotropy):
         if Z is None: Z=X
 
         if self.geo==False:
-            r2 = self._square_scaled_dist(X[:,:1], Z[:,:1])
+            r2 = self._square_scaled_dist(X, Z)
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             return self.variance * (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r)
         else:
-            r2 = self._scaled_geo_dist2(X[:,1:],Z[:,1:])
+            check_geo_dim(X)
+            r2 = self._scaled_geo_dist2(X,Z)
             r = _torch_sqrt(r2)
             sqrt5_r = 5**0.5 * r
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            dis_fun = check_pseudo(X,Z)
 
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r) * dis_fun
     
@@ -336,18 +432,167 @@ class WhiteNoise(Isotropy):
         if Z is None: Z=X
         
         if self.sp==True:
-            tem_delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
-            sp_delta_fun = (self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4) & torch.outer(X[:,2]<360,Z[:,2]<360)
+            check_geo_dim(X)
+            tem_delta_fun = self._scaled_dist(X, Z)<1e-4
+            sp_delta_fun = (self._scaled_geo_dist(X,Z)<1e-4) & torch.outer(X<360,Z<360)
 
             return self.variance * (tem_delta_fun * sp_delta_fun).double()
         
         if self.geo==True:
-            delta_fun = self._scaled_geo_dist(X[:,1:],Z[:,1:])<1e-4
+            check_geo_dim(X)
+            delta_fun = self._scaled_geo_dist(X,Z)<1e-4
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
+            dis_fun = check_pseudo(X,Z)
 
             return self.variance * delta_fun.double() * dis_fun
         
         if self.geo==False:
-            delta_fun = self._scaled_dist(X[:,:1], Z[:,:1])<1e-4
+            delta_fun = self._scaled_dist(X, Z)<1e-4
             return self.variance * delta_fun.double()
+
+
+class Cosine(Isotropy):
+    r"""
+    Implementation of Cosine kernel:
+
+        :math:`k(x,z) = \sigma^2 \cos\left(\frac{|x-z|}{l}\right).`
+
+    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.
+    """
+
+    def __init__(self, input_dim, variance=None, lengthscale=None, active_dims=None):
+        super().__init__(input_dim, variance, lengthscale, active_dims)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self._diag(X)
+
+        r = self._scaled_dist(X, Z)
+        return self.variance * torch.cos(r)
+
+
+
+class Periodic(Kernel):
+    r"""
+    Implementation of Periodic kernel:
+
+        :math:`k(x,z)=\sigma^2\exp\left(-2\times\frac{\sin^2(\pi(x-z)/p)}{l^2}\right),`
+
+    where :math:`p` is the ``period`` parameter.
+
+    References:
+
+    [1] `Introduction to Gaussian processes`,
+    David J.C. MacKay
+
+    :param torch.Tensor lengthscale: Length scale parameter of this kernel.
+    :param torch.Tensor period: Period parameter of this kernel.
+    """
+
+    def __init__(
+        self, input_dim, variance=None, lengthscale=None, period=None, active_dims=None
+    ):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+
+        lengthscale = torch.tensor(1.0) if lengthscale is None else lengthscale
+        self.lengthscale = PyroParam(lengthscale, constraints.positive)
+
+        period = torch.tensor(1.0) if period is None else period
+        self.period = PyroParam(period, constraints.positive)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self.variance.expand(X.size(0))
+
+        if Z is None:
+            Z = X
+        X = self._slice_input(X)
+        Z = self._slice_input(Z)
+        if X.size(1) != Z.size(1):
+            raise ValueError("Inputs must have the same number of features.")
+
+        d = X.unsqueeze(1) - Z.unsqueeze(0)
+        scaled_sin = torch.sin(np.pi * d / self.period) / self.lengthscale
+        return self.variance * torch.exp(-2 * (scaled_sin**2).sum(-1))
+
+
+class DotProduct(Kernel):
+    r"""
+    Base class for kernels which are functions of :math:`x \cdot z`.
+    """
+
+    def __init__(self, input_dim, variance=None, active_dims=None):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+
+    def _dot_product(self, X, Z=None, diag=False):
+        r"""
+        Returns :math:`X \cdot Z`.
+        """
+        if Z is None:
+            Z = X
+        X = self._slice_input(X)
+        if diag:
+            return (X**2).sum(-1)
+
+        Z = self._slice_input(Z)
+        if X.size(1) != Z.size(1):
+            raise ValueError("Inputs must have the same number of features.")
+
+        return X.matmul(Z.t())
+
+
+
+class Linear(DotProduct):
+    r"""
+    Implementation of Linear kernel:
+
+        :math:`k(x, z) = \sigma^2 x \cdot z.`
+
+    Doing Gaussian Process regression with linear kernel is equivalent to doing a
+    linear regression.
+
+    .. note:: Here we implement the homogeneous version. To use the inhomogeneous
+        version, consider using :class:`Polynomial` kernel with ``degree=1`` or making
+        a :class:`.Sum` with a :class:`.Constant` kernel.
+    """
+
+    def __init__(self, input_dim, variance=None, active_dims=None):
+        super().__init__(input_dim, variance, active_dims)
+
+    def forward(self, X, Z=None, diag=False):
+        return self.variance * self._dot_product(X, Z, diag)
+
+
+
+class Polynomial(DotProduct):
+    r"""
+    Implementation of Polynomial kernel:
+
+        :math:`k(x, z) = \sigma^2(\text{bias} + x \cdot z)^d.`
+
+    :param torch.Tensor bias: Bias parameter of this kernel. Should be positive.
+    :param int degree: Degree :math:`d` of the polynomial.
+    """
+
+    def __init__(self, input_dim, variance=None, bias=None, degree=1, active_dims=None):
+        super().__init__(input_dim, variance, active_dims)
+
+        bias = torch.tensor(1.0) if bias is None else bias
+        self.bias = PyroParam(bias, constraints.positive)
+
+        if not isinstance(degree, int) or degree < 1:
+            raise ValueError(
+                "Degree for Polynomial kernel should be a positive integer."
+            )
+        self.degree = degree
+
+    def forward(self, X, Z=None, diag=False):
+        return self.variance * (
+            (self.bias + self._dot_product(X, Z, diag)) ** self.degree
+        )

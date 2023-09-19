@@ -6,10 +6,6 @@ import os
 import torch
 import zipfile
 
-import matplotlib.path as mpath
-import matplotlib.gridspec as gridspec
-
-
 
 def load_local_rsl_data(file):
     '''
@@ -93,7 +89,6 @@ def load_regional_rsl_data(file):
                       x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
 
     return marine_limiting, SLIP, marine_limiting
-
 
 def load_PSMSL_data(data_folder,min_lat=25,max_lat=50,min_lon=-90,max_lon=-60,min_time_span=100,latest_age=2000):
     '''

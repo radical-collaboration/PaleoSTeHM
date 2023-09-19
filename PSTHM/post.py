@@ -121,8 +121,11 @@ def decompose_kernels(gpr,pred_matrix,kernels):
     loc_shape = latent_shape + (M,)
     v_2D = f_loc_2D
     Kff = gpr.kernel(gpr.X).contiguous()
-    Kff +=gpr.noise
-    Kff.view(-1)[:: N + 1] += gpr.jitter    # add noise to the diagonal
+    if gpr.noise.dim() <=1:
+        Kff.view(-1)[:: N + 1] += gpr.jitter + gpr.noise   # add noise to the diagonal
+    elif gpr.noise.dim() ==2:
+        Kff = Kff + gpr.noise
+        Kff.view(-1)[:: N + 1] += gpr.jitter 
     Lff = torch.linalg.cholesky(Kff)
     
     output = []
@@ -242,3 +245,43 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
         last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
         last_change_point = end_age
     return mean
+
+
+
+def cal_geo_dist2(X,Z=None):
+    '''
+    A function to calculate the squared distance matrix between each pair of X.
+    The function takes a PyTorch tensor of X and returns a matrix
+    where matrix[i, j] represents the spatial distance between the i-th and j-th X.
+    
+    -------Inputs-------
+    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+    R: approximate radius of earth in km
+    
+    -------Outputs-------
+    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
+    '''
+    if Z is None:
+        Z = X
+
+    # Convert coordinates to radians
+    X = torch.tensor(X)
+    Z = torch.tensor(Z)
+    X_coordinates_rad = torch.deg2rad(X)
+    Z_coordinates_rad = torch.deg2rad(Z)
+    
+    # Extract latitude and longitude tensors
+    X_latitudes_rad = X_coordinates_rad[:, 0]
+    X_longitudes_rad = X_coordinates_rad[:, 1]
+
+    Z_latitudes_rad = Z_coordinates_rad[:, 0]
+    Z_longitudes_rad = Z_coordinates_rad[:, 1]
+
+        # Calculate differences in latitude and longitude
+    dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
+    dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
+    # Apply Haversine formula
+    a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+
+    return c**2
