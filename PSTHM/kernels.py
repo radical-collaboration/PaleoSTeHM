@@ -433,22 +433,22 @@ class WhiteNoise(Isotropy):
         
         if self.sp==True:
             check_geo_dim(X)
-            tem_delta_fun = self._scaled_dist(X, Z)<1e-4
-            sp_delta_fun = (self._scaled_geo_dist(X,Z)<1e-4) & torch.outer(X<360,Z<360)
+            tem_delta_fun = self._scaled_dist(X, Z)<1e-7
+            sp_delta_fun = (self._scaled_geo_dist(X,Z)<1e-7) & torch.outer(X<360,Z<360)
 
-            return self.variance * (tem_delta_fun * sp_delta_fun).double()
+            return self.variance.expand(X.size(0), Z.size(0)) * (tem_delta_fun * sp_delta_fun).double()
         
         if self.geo==True:
             check_geo_dim(X)
-            delta_fun = self._scaled_geo_dist(X,Z)<1e-4
+            delta_fun = self._scaled_geo_dist(X,Z)<1e-7
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
             dis_fun = check_pseudo(X,Z)
 
-            return self.variance * delta_fun.double() * dis_fun
+            return self.variance.expand(X.size(0), Z.size(0)) * delta_fun.double() * dis_fun
         
         if self.geo==False:
-            delta_fun = self._scaled_dist(X, Z)<1e-4
-            return self.variance * delta_fun.double()
+            delta_fun = self._scaled_dist(X, Z)<1e-7
+            return self.variance.expand(X.size(0), Z.size(0)) * delta_fun.double()
 
 
 class Cosine(Isotropy):
