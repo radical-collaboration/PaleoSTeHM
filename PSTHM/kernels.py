@@ -179,13 +179,14 @@ class Isotropy(Kernel):
         -------Outputs-------
         distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
         '''
-        if X.dim()==2: X = X[:,1:] #use lat and lon to calculate spatial distance
         if Z is None: Z = X
-        if Z.dim()==2: Z = Z[:,1:]
+        if X.dim()==2: X = X[:,1:] #use lat and lon to calculate spatial distance
+        if Z.dim()==2: Z = Z[:,1:] #use lat and lon to calculate spatial distance
 
         # Convert coordinates to radians
         X = torch.tensor(X)
         Z = torch.tensor(Z)
+ 
         X_coordinates_rad = torch.deg2rad(X)
         Z_coordinates_rad = torch.deg2rad(Z)
         
@@ -412,14 +413,40 @@ class Matern52(Isotropy):
             dis_fun = check_pseudo(X,Z)
 
             return (1 + sqrt5_r + (5 / 3) * r2) * torch.exp(-sqrt5_r) * dis_fun
-    
-class WhiteNoise(Isotropy):
+
+
+class WhiteNoise(Kernel):
     r"""
     Implementation of WhiteNoise kernel:
 
         :math:`k(x, z) = \sigma^2 \delta(x, z),`
 
     where :math:`\delta` is a Dirac delta function.
+    """
+
+    def __init__(self, input_dim, variance=None, active_dims=None):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self.variance.expand(X.size(0))
+
+        if Z is None:
+            return self.variance.expand(X.size(0)).diag()
+        else:
+            return X.data.new_zeros(X.size(0), Z.size(0))
+    
+class WhiteNoise_SP(Isotropy):
+    r"""
+    Implementation of WhiteNoise kernel with multiple choices of spatial and temporal correlation:
+
+    if geo==True, then the kernel is spatially uncorrelated
+    if geo==False, then the kernel is a whiet noise kernel
+
+    
     """
 
     def __init__(self, input_dim, variance=None, lengthscale=None, s_lengthscale=None, active_dims=None,geo=False,sp=False):
@@ -431,24 +458,44 @@ class WhiteNoise(Isotropy):
         
         if Z is None: Z=X
         
-        if self.sp==True:
-            check_geo_dim(X)
-            tem_delta_fun = self._scaled_dist(X, Z)<1e-7
-            sp_delta_fun = (self._scaled_geo_dist(X,Z)<1e-7) & torch.outer(X<360,Z<360)
+        # if self.sp==True:
+        #     tem_delta_fun = self._scaled_dist(X, Z)<1e-4
+        #     sp_delta_fun = (self._scaled_geo_dist(X,Z)<1e-4) & torch.outer(X[:,2]<361,Z[:,2]<361)
 
-            return self.variance.expand(X.size(0), Z.size(0)) * (tem_delta_fun * sp_delta_fun).double()
+        #     return self.variance * (tem_delta_fun * sp_delta_fun).double()
         
         if self.geo==True:
-            check_geo_dim(X)
-            delta_fun = self._scaled_geo_dist(X,Z)<1e-7
+            delta_fun = self._scaled_geo_dist(X,Z)<1e-4 
             #no correlation for points with longtitude larger than 360, which suppose to be psuedo data
-            dis_fun = check_pseudo(X,Z)
+            dis_fun = torch.outer(torch.tensor(X)[:,1].abs()<361,torch.tensor(Z)[:,1].abs()<361).double()
 
-            return self.variance.expand(X.size(0), Z.size(0)) * delta_fun.double() * dis_fun
+            return self.variance * delta_fun.double() * dis_fun
         
         if self.geo==False:
-            delta_fun = self._scaled_dist(X, Z)<1e-7
-            return self.variance.expand(X.size(0), Z.size(0)) * delta_fun.double()
+            delta_fun = self._scaled_dist(X, Z)<1e-4  & torch.outer(X[:,2]<361,Z[:,2]<361)
+            return self.variance * delta_fun.double()
+
+
+class Constant(Kernel):
+    r"""
+    Implementation of Constant kernel:
+
+        :math:`k(x, z) = \sigma^2.`
+    """
+
+    def __init__(self, input_dim, variance=None, active_dims=None):
+        super().__init__(input_dim, active_dims)
+
+        variance = torch.tensor(1.0) if variance is None else variance
+        self.variance = PyroParam(variance, constraints.positive)
+
+    def forward(self, X, Z=None, diag=False):
+        if diag:
+            return self.variance.expand(X.size(0))
+
+        if Z is None:
+            Z = X
+        return self.variance.expand(X.size(0), Z.size(0))
 
 
 class Cosine(Isotropy):
@@ -524,12 +571,13 @@ class DotProduct(Kernel):
     Base class for kernels which are functions of :math:`x \cdot z`.
     """
 
-    def __init__(self, input_dim, variance=None, active_dims=None):
+    def __init__(self, input_dim,ref_year=None, variance=None, active_dims=None):
         super().__init__(input_dim, active_dims)
 
         variance = torch.tensor(1.0) if variance is None else variance
         self.variance = PyroParam(variance, constraints.positive)
-
+        ref_year = torch.tensor(0.) if ref_year is None else ref_year
+        self.ref_year = ref_year
     def _dot_product(self, X, Z=None, diag=False):
         r"""
         Returns :math:`X \cdot Z`.
@@ -562,12 +610,14 @@ class Linear(DotProduct):
         a :class:`.Sum` with a :class:`.Constant` kernel.
     """
 
-    def __init__(self, input_dim, variance=None, active_dims=None):
-        super().__init__(input_dim, variance, active_dims)
+    def __init__(self, input_dim,ref_year = None, variance=None, active_dims=None):
+        super().__init__(input_dim,ref_year, variance, active_dims)
 
     def forward(self, X, Z=None, diag=False):
-        return self.variance * self._dot_product(X, Z, diag)
-
+        if X.dim() >1: X = X[:,0]
+        if Z ==None: Z = X
+        if Z.dim() >1: Z = Z[:,0]
+        return self.variance * self._dot_product(X-self.ref_year, Z-self.ref_year, diag)
 
 
 class Polynomial(DotProduct):
@@ -593,6 +643,9 @@ class Polynomial(DotProduct):
         self.degree = degree
 
     def forward(self, X, Z=None, diag=False):
+        if X.dim() >1: X = X[:,0]
+        if Z ==None: Z = X
+        if Z.dim() >1: Z= Z[:,0] 
         return self.variance * (
             (self.bias + self._dot_product(X, Z, diag)) ** self.degree
         )

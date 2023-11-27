@@ -17,6 +17,7 @@ import torch
 from torch.distributions import constraints
 from pyro.contrib.gp.kernels.kernel import Kernel
 
+#----------------------GP models---------------------------
 
 class GPRegression_V(GPModel):
     r"""
@@ -89,7 +90,7 @@ class GPRegression_V(GPModel):
             noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            if  noise.dim() ==1:
+            if  noise.dim() <=1:
                 noise_store = torch.zeros(len(self.X),len(self.X))
                 noise_store.view(-1)[:: len(self.X) + 1] += noise 
                 self.noise = noise_store.double()
@@ -104,8 +105,6 @@ class GPRegression_V(GPModel):
         Kff = self.kernel(self.X)
         Kff = Kff + self.noise
         Kff.view(-1)[:: N + 1] += self.jitter
-#         Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
-
         Lff = torch.linalg.cholesky(Kff)
 
         zero_loc = self.X.new_zeros(self.X.size(0))
@@ -154,7 +153,7 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        if self.noise.dim() ==1:
+        if self.noise.dim() <=1:
             Kff.view(-1)[:: N + 1] += self.jitter + self.noise
         elif self.noise.dim() ==2:
             Kff = Kff + self.noise
@@ -182,83 +181,6 @@ class GPRegression_V(GPModel):
             cov = cov + self.noise.abs()
 
         return loc + self.mean_function(Xnew), cov
-
-
-    def iter_sample(self, noiseless=True):
-        r"""
-        Iteratively constructs a sample from the Gaussian Process posterior.
-
-        Recall that at test input points :math:`X_{new}`, the posterior is
-        multivariate Gaussian distributed with mean and covariance matrix
-        given by :func:`forward`.
-
-        This method samples lazily from this multivariate Gaussian. The advantage
-        of this approach is that later query points can depend upon earlier ones.
-        Particularly useful when the querying is to be done by an optimisation
-        routine.
-
-        .. note:: The noise parameter ``noise`` (:math:`\epsilon`) together with
-            kernel's parameters have been learned from a training procedure (MCMC or
-            SVI).
-
-        :param bool noiseless: A flag to decide if we want to add sampling noise
-            to the samples beyond the noise inherent in the GP posterior.
-        :returns: sampler
-        :rtype: function
-        """
-        noise = self.noise.detach()
-        X = self.X.clone().detach()
-        y = self.y.clone().detach()
-        N = X.size(0)
-        Kff = self.kernel(X).contiguous()
-        Kff.view(-1)[:: N + 1] += noise  # add noise to the diagonal
-
-        outside_vars = {"X": X, "y": y, "N": N, "Kff": Kff}
-
-        def sample_next(xnew, outside_vars):
-            """Repeatedly samples from the Gaussian process posterior,
-            conditioning on previously sampled values.
-            """
-            warn_if_nan(xnew)
-
-            # Variables from outer scope
-            X, y, Kff = outside_vars["X"], outside_vars["y"], outside_vars["Kff"]
-
-            # Compute Cholesky decomposition of kernel matrix
-            Lff = torch.linalg.cholesky(Kff)
-            y_residual = y - self.mean_function(X)
-
-            # Compute conditional mean and variance
-            loc, cov = conditional(
-                xnew, X, self.kernel, y_residual, None, Lff, False, jitter=self.jitter
-            )
-            if not noiseless:
-                cov = cov + noise
-
-            ynew = torchdist.Normal(
-                loc + self.mean_function(xnew), cov.sqrt()
-            ).rsample()
-
-            # Update kernel matrix
-            N = outside_vars["N"]
-            Kffnew = Kff.new_empty(N + 1, N + 1)
-            Kffnew[:N, :N] = Kff
-            cross = self.kernel(X, xnew).squeeze()
-            end = self.kernel(xnew, xnew).squeeze()
-            Kffnew[N, :N] = cross
-            Kffnew[:N, N] = cross
-            # No noise, just jitter for numerical stability
-            Kffnew[N, N] = end + self.jitter
-            # Heuristic to avoid adding degenerate points
-            if Kffnew.logdet() > -15.0:
-                outside_vars["Kff"] = Kffnew
-                outside_vars["N"] += 1
-                outside_vars["X"] = torch.cat((X, xnew))
-                outside_vars["y"] = torch.cat((y, ynew))
-
-            return ynew
-
-        return lambda xnew: sample_next(xnew, outside_vars)
 
 
 class GPRegression_EIV(GPModel):
@@ -307,6 +229,8 @@ class GPRegression_EIV(GPModel):
         number of data points.
     :param ~pyro.contrib.gp.kernels.kernel.Kernel kernel: A Pyro kernel object, which
         is the covariance function :math:`k`.
+    :param x_noise: A input data for training. Its first dimension is the number, representing 
+        the variance of the error for age, which is usually obtained from radiocarbon dating 
     :param torch.Tensor noise: Variance of Gaussian noise of this model.
     :param callable mean_function: An optional mean function :math:`m` of this Gaussian
         process. By default, we use zero mean.
@@ -314,7 +238,7 @@ class GPRegression_EIV(GPModel):
         a covariance matrix to help stablize its Cholesky decomposition.
     """
 
-    def __init__(self, X, y, xerr,kernel, noise=None, mean_function=None, jitter=1e-6):
+    def __init__(self, X, y, x_noise,kernel, noise=None, mean_function=None, jitter=1e-6):
         assert isinstance(
             X, torch.Tensor
         ), "X needs to be a torch Tensor instead of a {}".format(type(X))
@@ -325,30 +249,40 @@ class GPRegression_EIV(GPModel):
        
         super().__init__(X, y,kernel, mean_function, jitter)
        
-        if len(torch.tensor(xerr).shape)==0:
-            xerr = torch.ones(len(X))*xerr
-        self.xerr = xerr.double()
+        if len(torch.tensor(x_noise).shape)==0:
+            x_noise = torch.ones(len(X))*x_noise
+        self.x_noise = x_noise.double()
         self = self.double() #GP in pyro should use double precision
         self.X = self.X.double()
         self.y = self.y.double()
 
         if noise is None:
+            noise = self.X.new_tensor(1.0)
             self.noise = PyroParam(noise, constraints.positive)
         else:
-            self.noise = noise.double()
+            if  noise.dim() <=1:
+                noise_store = torch.zeros(len(self.X),len(self.X))
+                noise_store.view(-1)[:: len(self.X) + 1] += noise 
+                self.noise = noise_store.double()
+            elif noise.dim() ==2:
+                self.noise = noise.double()
+        
     @pyro_method
     def model(self):
         self.set_mode("model")
         N = self.X.size(0)
-        x_noise = pyro.sample('xerr',dist.Normal(torch.zeros(N),self.xerr**0.5).to_event(1))
+        x_noise = pyro.sample('xerr',dist.Normal(torch.zeros(N),self.x_noise**0.5).to_event(1))
         if self.X.dim()<=1:
+            X_noisy = self.X
             X_noisy = (self.X+x_noise)
         else:
-            X_noisy = self.X
+            X_noisy = torch.clone(self.X)
             X_noisy[:,0] += x_noise
        
-        Kff = self.kernel(X_noisy)
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
+        Kff = self.kernel(X_noisy).contiguous()
+        Kff = Kff + self.noise
+        Kff.view(-1)[:: N + 1] += self.jitter
+        # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal
         Lff = torch.linalg.cholesky(Kff)
         zero_loc = X_noisy.new_zeros(X_noisy.size(0))
         f_loc = zero_loc + self.mean_function(X_noisy)
@@ -396,7 +330,13 @@ class GPRegression_EIV(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X).contiguous()
-        Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
+        if self.noise.dim() <=1:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise
+        elif self.noise.dim() ==2:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter
+
+        # Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal
         Lff = torch.linalg.cholesky(Kff)
 
         y_residual = self.y - self.mean_function(self.X)
@@ -419,6 +359,32 @@ class GPRegression_EIV(GPModel):
             cov = cov + self.noise.abs()
 
         return loc + self.mean_function(Xnew), cov
+
+class GIA_ensemble(Kernel):
+    '''
+    This is a class to define a GIA ensemble model as the mean function for GP
+
+    ------------Inputs--------------
+    GIA_model_interp: a list of interpolation function that can 3D interpolate the
+    RSL history predicted by a GIA model
+
+    ------------Outputs--------------
+    mean: the prediction of the GIA ensemble model
+    '''
+    def __init__(self,GIA_model_interp,input_dim=1):
+        super().__init__(input_dim)
+        self.GIA_model_interp = GIA_model_interp
+        self.GIA_model_num =len(GIA_model_interp)
+        self.s = PyroParam(torch.tensor(1.0))
+        self.w = PyroParam(torch.ones(self.GIA_model_num))
+       
+    def forward(self, X):
+        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
+        for i in range(self.GIA_model_num):
+            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
+        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
+
+#----------------------Linear regression models---------------------------
 
 def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_prior):
     '''
@@ -486,67 +452,6 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
 
-def get_change_point_posterior(guide,sample_number):
-    num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
-    output_dict = dict()
-    output_dict['b'] = np.zeros(sample_number)
-    output_dict['a'] = np.zeros([sample_number,num_cp+1])
-    output_dict['cp'] = np.zeros([sample_number,num_cp])
-    test_cp = []
-    for i in range(num_cp):
-        test_cp.append(guide.median()['cp_'+str(i)].detach().numpy())
-    cp_index = np.argsort(test_cp)
-   
-    for i in range(sample_number):
-        store_beta = []
-        store_cp = []
-        posterior_samples = guide()
-        for i2 in range(num_cp+1):
-            store_beta.append(posterior_samples['a_'+str(i2)].detach().numpy())
-            if i2 < num_cp:
-                store_cp.append(posterior_samples['cp_'+str(i2)].detach().numpy())
-        output_dict['b'][i] = posterior_samples['b'].detach().numpy()
-        output_dict['a'][i] = np.array(store_beta)
-        output_dict['cp'][i] = np.array(store_cp)[cp_index]
-    return output_dict
-
-def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
-    '''
-    A function to calculate the forward model of the change-point model
-
-    ------------Inputs--------------
-    n_cp: int, number of change-points
-    cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points
-    new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction
-    data_X: 2D torch tensor with shape (n_samples,n_features) for training data
-    beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
-    b: float, the intercept coefficient
-    '''
-    last_intercept = b
-    mean = torch.zeros(new_X.shape[0])
-    for i in range(n_cp+1):
-        if i==0:
-            start_age = data_X[:,0].min()
-            start_idx = 0
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(new_X<end_age)[0][-1]+1
-            last_change_point = start_age
-        elif i==n_cp:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(new_X>=start_age)[0][0]
-            end_age = new_X[:,0].max()
-            end_idx = new_X.shape[0]
-        else:
-            start_age = cp_loc_list[i-1]
-            start_idx = torch.where(new_X>=start_age)[0][0]
-            end_age = cp_loc_list[i]
-            end_idx = torch.where(new_X<end_age)[0][-1]+1
-       
-        mean[start_idx:end_idx] = beta_coef_list[i] * (new_X[start_idx:end_idx:,0]-last_change_point) + last_intercept
-        last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
-        last_change_point = end_age
-    return mean
-
 def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     '''
     A function to define a linear model in pyro
@@ -580,30 +485,6 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-
-class GIA_ensemble(Kernel):
-    '''
-    This is a class to define a GIA ensemble model as the mean function for GP
-
-    ------------Inputs--------------
-    GIA_model_interp: a list of interpolation function that can 3D interpolate the
-    RSL history predicted by a GIA model
-
-    ------------Outputs--------------
-    mean: the prediction of the GIA ensemble model
-    '''
-    def __init__(self,GIA_model_interp,input_dim=1):
-        super().__init__(input_dim)
-        self.GIA_model_interp = GIA_model_interp
-        self.GIA_model_num =len(GIA_model_interp)
-        self.s = PyroParam(torch.tensor(1.0))
-        self.w = PyroParam(torch.ones(self.GIA_model_num))
-       
-    def forward(self, X):
-        pred_matrix = torch.ones(self.GIA_model_num,X.shape[0])
-        for i in range(self.GIA_model_num):
-            pred_matrix[i] = torch.tensor(self.GIA_model_interp[i](X.detach().numpy()))
-        return ((self.w*self.s)[:,None] *pred_matrix).sum(axis=0)
    
 
 #THis model can be implemented within a class
@@ -636,43 +517,3 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
         observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-
-#--------------------------------------3.2 Modelling Choice GP module-----------------------------------------------
-
-def cal_geo_dist2(X,Z=None):
-    '''
-    A function to calculate the squared distance matrix between each pair of X.
-    The function takes a PyTorch tensor of X and returns a matrix
-    where matrix[i, j] represents the spatial distance between the i-th and j-th X.
-   
-    -------Inputs-------
-    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
-    R: approximate radius of earth in km
-   
-    -------Outputs-------
-    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix
-    '''
-    if Z is None:
-        Z = X
-
-    # Convert coordinates to radians
-    X = torch.tensor(X)
-    Z = torch.tensor(Z)
-    X_coordinates_rad = torch.deg2rad(X)
-    Z_coordinates_rad = torch.deg2rad(Z)
-   
-    # Extract latitude and longitude tensors
-    X_latitudes_rad = X_coordinates_rad[:, 0]
-    X_longitudes_rad = X_coordinates_rad[:, 1]
-
-    Z_latitudes_rad = Z_coordinates_rad[:, 0]
-    Z_longitudes_rad = Z_coordinates_rad[:, 1]
-
-        # Calculate differences in latitude and longitude
-    dlat = X_latitudes_rad[:, None] - Z_latitudes_rad[None, :]
-    dlon = X_longitudes_rad[:, None] - Z_longitudes_rad[None, :]
-    # Apply Haversine formula
-    a = torch.sin(dlat / 2) ** 2 + torch.cos(X_latitudes_rad[:, None]) * torch.cos(Z_latitudes_rad[None, :]) * torch.sin(dlon / 2) ** 2
-    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-
-    return c**2

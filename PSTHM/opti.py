@@ -8,9 +8,7 @@ from tqdm.notebook import tqdm
 import torch
 from pyro.infer import MCMC, NUTS
 
-
-
-def SVI_optm(gpr,num_iteration=500,lr=0.05,decay_r = 1,step_size=100):
+def SVI_optm(gpr,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,equal_kernels=None):
     '''
     A funciton to optimize the hyperparameters of a GP model using SVI
 
@@ -21,6 +19,9 @@ def SVI_optm(gpr,num_iteration=500,lr=0.05,decay_r = 1,step_size=100):
     decay_r: decay rate for the learning rate
     step_size: step size for the learning rate to decay. 
     A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+    equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use
+    the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [['gpr.kern0.kern0.kern0.lengthscale',’gpr.kern0.kern1.lengthscale‘]].
+    This also supports multiple kernel pairs.
 
     ---------Outputs-----------
     gpr: a GP model with optimized hyperparameters
@@ -41,6 +42,7 @@ def SVI_optm(gpr,num_iteration=500,lr=0.05,decay_r = 1,step_size=100):
     track_list = []
 
     for i in tqdm(range(num_iteration)):
+        
         scheduler.step()
         optimizer.zero_grad()
         loss = loss_fn(gpr.model, gpr.guide)
@@ -48,6 +50,26 @@ def SVI_optm(gpr,num_iteration=500,lr=0.05,decay_r = 1,step_size=100):
         optimizer.step()
         gpr.set_mode("guide")
         tem_para =  []
+
+        if equal_kernels==None: 
+            pass
+        else:
+            for kernels in equal_kernels:
+                if kernels[0] in pyro.get_param_store().keys():
+                    pass
+                elif kernels[0]+'_map' in pyro.get_param_store().keys():
+                    kernels[0] = kernels[0]+'_map'
+                else:
+                    print(kernels[0], ' not in pyro storage')
+
+                if kernels[1] in pyro.get_param_store().keys():
+                    pass
+                elif kernels[1]+'_map' in pyro.get_param_store().keys():
+                    kernels[1] = kernels[1]+'_map'
+                else:
+                    print(kernels[1], ' not in pyro storage')
+                pyro.get_param_store()[kernels[0]] = pyro.get_param_store()[kernels[1]]
+
         for i2 in pyro.get_param_store().values():
             if i2.numel()==1:
                 tem_para.append(i2.item())
@@ -71,7 +93,7 @@ def SVI_optm(gpr,num_iteration=500,lr=0.05,decay_r = 1,step_size=100):
     return gpr,track_list
 
 
-def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.05,decay_r = 1,step_size=100,gpu=False):
+def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,equal_kernels=None,gpu=False):
     '''
     A funciton to optimize the hyperparameters of a GP model using SVI
 
@@ -82,6 +104,10 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.05,decay_r = 1,step_size=100,
     lr: learning rate for the optimization
     step_size: step size for the learning rate to decay. 
     A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+    equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use
+    the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [['gpr.kern0.kern0.kern0.lengthscale',’gpr.kern0.kern1.lengthscale‘]].
+    This also supports multiple kernel pairs.
+    
     gpu: whether use gpu to accelerate training 
     ---------Outputs-----------
     gpr: a GP model with optimized hyperparameters
@@ -101,11 +127,11 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.05,decay_r = 1,step_size=100,
     #do the optimisation
     track_list = []
     N = len(gpr.X)
-
     if gpr.noise.dim()==1:
         y_sigma = gpr.noise**0.5
     elif gpr.noise.dim()==2:
         y_sigma = gpr.noise.view(-1)[:: N + 1]**0.5
+
 
     for i in tqdm(range(num_iteration)):
         #update vertical noise based on gradient
@@ -121,12 +147,11 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.05,decay_r = 1,step_size=100,
             y_rate = x_test.grad
         if y_rate.ndim>1: y_rate = y_rate[:,0]
         new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
-
         if gpr.noise.dim()==1:
             gpr.noise = torch.tensor(new_sigma**2)
         elif gpr.noise.dim()==2:
             gpr.noise.view(-1)[:: N + 1] = torch.tensor(new_sigma**2)
-
+            
         scheduler.step()
         optimizer.zero_grad()
         loss = loss_fn(gpr.model, gpr.guide)
@@ -134,12 +159,33 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.05,decay_r = 1,step_size=100,
         optimizer.step()
         gpr.set_mode("guide")
         tem_para =  []
+        
+        if equal_kernels==None: 
+            pass
+        else:
+            for kernels in equal_kernels:
+                if kernels[0] in pyro.get_param_store().keys():
+                    pass
+                elif kernels[0]+'_map' in pyro.get_param_store().keys():
+                    kernels[0] = kernels[0]+'_map'
+                else:
+                    print(kernels[0], ' not in pyro storage')
+
+                if kernels[1] in pyro.get_param_store().keys():
+                    pass
+                elif kernels[1]+'_map' in pyro.get_param_store().keys():
+                    kernels[1] = kernels[1]+'_map'
+                else:
+                    print(kernels[1], ' not in pyro storage')
+                pyro.get_param_store()[kernels[0]] = pyro.get_param_store()[kernels[1]]
+        
         for i2 in pyro.get_param_store().values():
             if i2.numel()==1:
                 tem_para.append(i2.item())
             else:
                 for i3 in i2:
                     tem_para.append(i3.item())
+        
         track_list.append([loss.item(),*tem_para])
     
     #generate columns names for the track list
@@ -185,14 +231,12 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
 
     return mcmc
 
-
-
-def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=2000):
+def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=1500):
     '''
     A function to optimize the pyro model
 
     ------------Inputs--------------
-    model: PaleoSTeHM model
+    model: PaleoSTeHM model, currently supports: change_point_model, ensemble_GIA_model, linear_model
     X: 2D torch tensor with shape (n_samples,n_features)
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
