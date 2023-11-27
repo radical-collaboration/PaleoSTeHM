@@ -39,7 +39,7 @@ def load_local_rsl_data(file):
 
     return X,y,y_sigma,x_sigma,rsl_lon,rsl_lat
 
-def load_regional_rsl_data(file):
+def load_regional_rsl_data(file,CE=False):
     '''
     A function to load rsl data from a csv file, this csv 
     file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder
@@ -65,7 +65,10 @@ def load_regional_rsl_data(file):
     data = pd.read_csv(file)
     rsl = data['RSL']
     rsl_2sd =( data['RSLer_up_2sd']+data['RSLer_low_2sd'])/2 #average up and low 2std
-    rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    if CE:
+        rsl_age = -(data['Age']-1950) #convert age from BP to CE
+    else:
+        rsl_age = data['Age']
     rsl_age_2sd = (data['Age_low_er_2sd']+data['Age_up_er_2sd'])/2 #average up and low 2std
     rsl_lon = data['Longitude']
     rsl_lat = data['Latitude']

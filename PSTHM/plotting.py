@@ -15,9 +15,7 @@ matplotlib.rcParams['figure.figsize'] = (12, 6)
 matplotlib.rcParams['legend.frameon'] = 'False'
 matplotlib.rc('font',**font)
 
-
-
-def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None):
+def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None,CE=False):
     '''
     A function to plot uncertainty box for data with vertical and horizontal uncertainties.
 
@@ -37,11 +35,14 @@ def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None):
 
     #     ax.set_xlim(np.min(x)-x_error[np.argmin(x)]*5,np.max(x)+x_error[np.argmax(x)]*5)
     #     ax.set_ylim(np.min(y)-y_error[np.argmin(y)]*5,np.max(y)+y_error[np.argmax(y)]*5)
-
-    ax.set_xlabel('Age (CE)')
+    if CE:
+        ax.set_xlabel('Age (CE)')
+    else:
+        ax.set_xlabel('Age (BP)')
     ax.set_ylabel('RSL (m)')
 
     return ax
+
 
 def plot_tem_regression(data_age, data_rsl, data_age_sigma, data_rsl_sigma, mean_rsl_age, mean_rsl,
                         rsl_sd, rsl_rate_age, mean_rate, rate_sd, color='C0', axes=None):

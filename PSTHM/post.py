@@ -8,49 +8,6 @@ from scipy import interpolate
 import torch
 from pyro.infer import Predictive
 
-
-def mcmc_predict(input_gpr,mcmc,Xnew,thin_index=1):
-    '''
-    A function to prediction posterior mean and covariance of GP regression model
-
-    ----------Inputs----------
-    input_gpr: a pyro GP regression model
-    mcmc: a pyro MCMC object
-    Xnew: a torch tensor of new input data
-
-    ----------Outputs----------
-    full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
-    full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
-    full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model
-    '''
-    
-    def predictive(X_new,gpr):
-        y_loc, y_cov = gpr(X_new,full_cov=True)
-        pyro.sample("y", dist.Delta(y_loc))
-        pyro.sample("y_cov", dist.Delta(y_cov))
-        
-    Xnew = torch.tensor(Xnew).double()
-    thin_mcmc = mcmc.get_samples()
-    for i in thin_mcmc:
-        thin_mcmc[i] = thin_mcmc[i][::thin_index]
-
-    posterior_predictive = Predictive(predictive, thin_mcmc)
-    full_bayes_mean,full_bayes_cov = posterior_predictive.get_samples(Xnew,input_gpr).values()
-    full_bayes_mean_mean = full_bayes_mean.mean(axis=0).detach().numpy()
-    full_bayes_cov_mean = full_bayes_cov.mean(axis=0).detach().numpy()
-    full_bayes_std_mean = np.diag(full_bayes_cov_mean)**0.5
-    likelihood_list = []
-    noise = np.ones(len(input_gpr.X))*input_gpr.noise.detach().numpy()
-
-    for i in range(len(full_bayes_mean)):
-        f = interpolate.interp1d(Xnew,full_bayes_mean[i])
-        likelihood_list.append(cal_likelihood(input_gpr.y.detach().numpy(),
-                                              noise**0.5,
-                                              f(input_gpr.X)))
-        
-    return full_bayes_mean_mean,full_bayes_cov_mean,full_bayes_std_mean,likelihood_list
-
-
 def gen_pred_matrix(age,lat,lon):
     '''
     A function to generate an input matrix for Spatio-temporal GP model
