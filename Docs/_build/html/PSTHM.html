@@ -1,0 +1,2339 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>PSTHM package &#8212; PaleoSTeHM  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="PSTHM" href="modules.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="psthm-package">
+<h1>PSTHM package<a class="headerlink" href="#psthm-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-PSTHM.PSTHM">
+<span id="psthm-psthm-module"></span><h2>PSTHM.PSTHM module<a class="headerlink" href="#module-PSTHM.PSTHM" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="PSTHM.PSTHM.Exponential">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">Exponential</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Exponential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of Exponential kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.PSTHM.Exponential.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Exponential.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.GIA_ensemble">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">GIA_ensemble</code><span class="sig-paren">(</span><em>GIA_model_interp</em>, <em>input_dim=1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GIA_ensemble" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>This is a class to define a GIA ensemble model as the mean function for GP</p>
+<p>————Inputs————–
+GIA_model_interp: a list of interpolation function that can 3D interpolate the 
+RSL history predicted by a GIA model</p>
+<p>————Outputs————–
+mean: the prediction of the GIA ensemble model</p>
+<dl class="method">
+<dt id="PSTHM.PSTHM.GIA_ensemble.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GIA_ensemble.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.GPRegression_EIV">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">GPRegression_EIV</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>xerr</em>, <em>kernel</em>, <em>noise=None</em>, <em>mean_function=None</em>, <em>jitter=1e-06</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_EIV" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.models.model.GPModel</span></code></p>
+<p>Gaussian Process Regression model.</p>
+<p>The core of a Gaussian Process is a covariance function <span class="math notranslate nohighlight">\(k\)</span> which governs
+the similarity between input points. Given <span class="math notranslate nohighlight">\(k\)</span>, we can establish a
+distribution over functions <span class="math notranslate nohighlight">\(f\)</span> by a multivarite normal distribution</p>
+<div class="math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(0, k(X, X)),\]</div>
+<p>where <span class="math notranslate nohighlight">\(X\)</span> is any set of input points and <span class="math notranslate nohighlight">\(k(X, X)\)</span> is a covariance
+matrix whose entries are outputs <span class="math notranslate nohighlight">\(k(x, z)\)</span> of <span class="math notranslate nohighlight">\(k\)</span> over input pairs
+<span class="math notranslate nohighlight">\((x, z)\)</span>. This distribution is usually denoted by</p>
+<div class="math notranslate nohighlight">
+\[f \sim \mathcal{GP}(0, k).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Generally, beside a covariance matrix <span class="math notranslate nohighlight">\(k\)</span>, a Gaussian Process can
+also be specified by a mean function <span class="math notranslate nohighlight">\(m\)</span> (which is a zero-value function
+by default). In that case, its distribution will be</p>
+<div class="last math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(m(X), k(X, X)).\]</div>
+</div>
+<p>Given inputs <span class="math notranslate nohighlight">\(X\)</span> and their noisy observations <span class="math notranslate nohighlight">\(y\)</span>, the Gaussian Process
+Regression model takes the form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f &amp;\sim \mathcal{GP}(0, k(X, X)),\\
+y &amp; \sim f + \epsilon,\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon\)</span> is Gaussian noise.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This model has <span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for training,
+<span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for testing. Here, <span class="math notranslate nohighlight">\(N\)</span> is the number
+of train inputs.</p>
+</div>
+<p>Reference:</p>
+<p>[1] <cite>Gaussian Processes for Machine Learning</cite>,
+Carl E. Rasmussen, Christopher K. I. Williams</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A input data for training. Its first dimension is the number
+of data points.</li>
+<li><strong>y</strong> (<em>torch.Tensor</em>) – An output data for training. Its last dimension is the
+number of data points.</li>
+<li><strong>kernel</strong> (<em>Kernel</em>) – A Pyro kernel object, which
+is the covariance function <span class="math notranslate nohighlight">\(k\)</span>.</li>
+<li><strong>noise</strong> (<em>torch.Tensor</em>) – Variance of Gaussian noise of this model.</li>
+<li><strong>mean_function</strong> (<em>callable</em>) – An optional mean function <span class="math notranslate nohighlight">\(m\)</span> of this Gaussian
+process. By default, we use zero mean.</li>
+<li><strong>jitter</strong> (<em>float</em>) – A small positive term which is added into the diagonal part of
+a covariance matrix to help stablize its Cholesky decomposition.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_EIV.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>Xnew</em>, <em>full_cov=False</em>, <em>noiseless=True</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_EIV.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the mean and covariance matrix (or variance) of Gaussian Process
+posterior on a test input data <span class="math notranslate nohighlight">\(X_{new}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The noise parameter <code class="docutils literal notranslate"><span class="pre">noise</span></code> (<span class="math notranslate nohighlight">\(\epsilon\)</span>) together with
+kernel’s parameters have been learned from a training procedure (MCMC or
+SVI).</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Xnew</strong> (<em>torch.Tensor</em>) – A input data for testing. Note that
+<code class="docutils literal notranslate"><span class="pre">Xnew.shape[1:]</span></code> must be the same as <code class="docutils literal notranslate"><span class="pre">self.X.shape[1:]</span></code>.</li>
+<li><strong>full_cov</strong> (<em>bool</em>) – A flag to decide if we want to predict full covariance
+matrix or just variance.</li>
+<li><strong>noiseless</strong> (<em>bool</em>) – A flag to decide if we want to include noise in the
+prediction output or not.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">loc and covariance matrix (or variance) of <span class="math notranslate nohighlight">\(p(f^*(X_{new}))\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">tuple(torch.Tensor, torch.Tensor)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_EIV.guide">
+<code class="descname">guide</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_EIV.guide" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “guide” stochastic function to be used in variational inference methods. It
+also gives posterior information to the method <a class="reference internal" href="#PSTHM.PSTHM.GPRegression_EIV.forward" title="PSTHM.PSTHM.GPRegression_EIV.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> for prediction.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_EIV.model">
+<code class="descname">model</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_EIV.model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “model” stochastic function. If <code class="docutils literal notranslate"><span class="pre">self.y</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>, this method returns
+mean and variance of the Gaussian Process prior.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.GPRegression_V">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">GPRegression_V</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>kernel</em>, <em>noise=None</em>, <em>mean_function=None</em>, <em>jitter=1e-06</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_V" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.models.model.GPModel</span></code></p>
+<p>Gaussian Process Regression model.</p>
+<p>The core of a Gaussian Process is a covariance function <span class="math notranslate nohighlight">\(k\)</span> which governs
+the similarity between input points. Given <span class="math notranslate nohighlight">\(k\)</span>, we can establish a
+distribution over functions <span class="math notranslate nohighlight">\(f\)</span> by a multivarite normal distribution</p>
+<div class="math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(0, k(X, X)),\]</div>
+<p>where <span class="math notranslate nohighlight">\(X\)</span> is any set of input points and <span class="math notranslate nohighlight">\(k(X, X)\)</span> is a covariance
+matrix whose entries are outputs <span class="math notranslate nohighlight">\(k(x, z)\)</span> of <span class="math notranslate nohighlight">\(k\)</span> over input pairs
+<span class="math notranslate nohighlight">\((x, z)\)</span>. This distribution is usually denoted by</p>
+<div class="math notranslate nohighlight">
+\[f \sim \mathcal{GP}(0, k).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Generally, beside a covariance matrix <span class="math notranslate nohighlight">\(k\)</span>, a Gaussian Process can
+also be specified by a mean function <span class="math notranslate nohighlight">\(m\)</span> (which is a zero-value function
+by default). In that case, its distribution will be</p>
+<div class="last math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(m(X), k(X, X)).\]</div>
+</div>
+<p>Given inputs <span class="math notranslate nohighlight">\(X\)</span> and their noisy observations <span class="math notranslate nohighlight">\(y\)</span>, the Gaussian Process
+Regression model takes the form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f &amp;\sim \mathcal{GP}(0, k(X, X)),\\
+y &amp; \sim f + \epsilon,\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon\)</span> is Gaussian noise.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This model has <span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for training,
+<span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for testing. Here, <span class="math notranslate nohighlight">\(N\)</span> is the number
+of train inputs.</p>
+</div>
+<p>Reference:</p>
+<p>[1] <cite>Gaussian Processes for Machine Learning</cite>,
+Carl E. Rasmussen, Christopher K. I. Williams</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A input data for training. Its first dimension is the number
+of data points.</li>
+<li><strong>y</strong> (<em>torch.Tensor</em>) – An output data for training. Its last dimension is the
+number of data points.</li>
+<li><strong>kernel</strong> (<em>Kernel</em>) – A Pyro kernel object, which
+is the covariance function <span class="math notranslate nohighlight">\(k\)</span>.</li>
+<li><strong>noise</strong> (<em>torch.Tensor</em>) – Variance of Gaussian noise of this model.</li>
+<li><strong>mean_function</strong> (<em>callable</em>) – An optional mean function <span class="math notranslate nohighlight">\(m\)</span> of this Gaussian
+process. By default, we use zero mean.</li>
+<li><strong>jitter</strong> (<em>float</em>) – A small positive term which is added into the diagonal part of
+a covariance matrix to help stablize its Cholesky decomposition.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_V.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>Xnew</em>, <em>full_cov=False</em>, <em>noiseless=True</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_V.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the mean and covariance matrix (or variance) of Gaussian Process
+posterior on a test input data <span class="math notranslate nohighlight">\(X_{new}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The noise parameter <code class="docutils literal notranslate"><span class="pre">noise</span></code> (<span class="math notranslate nohighlight">\(\epsilon\)</span>) together with
+kernel’s parameters have been learned from a training procedure (MCMC or
+SVI).</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Xnew</strong> (<em>torch.Tensor</em>) – A input data for testing. Note that
+<code class="docutils literal notranslate"><span class="pre">Xnew.shape[1:]</span></code> must be the same as <code class="docutils literal notranslate"><span class="pre">self.X.shape[1:]</span></code>.</li>
+<li><strong>full_cov</strong> (<em>bool</em>) – A flag to decide if we want to predict full covariance
+matrix or just variance.</li>
+<li><strong>noiseless</strong> (<em>bool</em>) – A flag to decide if we want to include noise in the
+prediction output or notest_cov[i:i+1]t.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">loc and covariance matrix (or variance) of <span class="math notranslate nohighlight">\(p(f^*(X_{new}))\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">tuple(torch.Tensor, torch.Tensor)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_V.guide">
+<code class="descname">guide</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_V.guide" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “guide” stochastic function to be used in variational inference methods. It
+also gives posterior information to the method <a class="reference internal" href="#PSTHM.PSTHM.GPRegression_V.forward" title="PSTHM.PSTHM.GPRegression_V.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> for prediction.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_V.iter_sample">
+<code class="descname">iter_sample</code><span class="sig-paren">(</span><em>noiseless=True</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_V.iter_sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Iteratively constructs a sample from the Gaussian Process posterior.</p>
+<p>Recall that at test input points <span class="math notranslate nohighlight">\(X_{new}\)</span>, the posterior is
+multivariate Gaussian distributed with mean and covariance matrix
+given by <a class="reference internal" href="#PSTHM.PSTHM.GPRegression_V.forward" title="PSTHM.PSTHM.GPRegression_V.forward"><code class="xref py py-func docutils literal notranslate"><span class="pre">forward()</span></code></a>.</p>
+<p>This method samples lazily from this multivariate Gaussian. The advantage
+of this approach is that later query points can depend upon earlier ones.
+Particularly useful when the querying is to be done by an optimisation
+routine.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The noise parameter <code class="docutils literal notranslate"><span class="pre">noise</span></code> (<span class="math notranslate nohighlight">\(\epsilon\)</span>) together with
+kernel’s parameters have been learned from a training procedure (MCMC or
+SVI).</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>noiseless</strong> (<em>bool</em>) – A flag to decide if we want to add sampling noise
+to the samples beyond the noise inherent in the GP posterior.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">sampler</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">function</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.PSTHM.GPRegression_V.model">
+<code class="descname">model</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.GPRegression_V.model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “model” stochastic function. If <code class="docutils literal notranslate"><span class="pre">self.y</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>, this method returns
+mean and variance of the Gaussian Process prior.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.Isotropy">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">Isotropy</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em>, <em>sp=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Isotropy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Base class for a family of isotropic covariance kernels which are functions of the
+distance <span class="math notranslate nohighlight">\(|x-z|/l\)</span>, where <span class="math notranslate nohighlight">\(l\)</span> is the length-scale parameter.</p>
+<p>By default, the parameter <code class="docutils literal notranslate"><span class="pre">lengthscale</span></code> has size 1. To use the isotropic version
+(different lengthscale for each dimension), make sure that <code class="docutils literal notranslate"><span class="pre">lengthscale</span></code> has size
+equal to <code class="docutils literal notranslate"><span class="pre">input_dim</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lengthscale</strong> (<em>torch.Tensor</em>) – Length-scale parameter of this kernel.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.Matern21">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">Matern21</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern21" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of Matern21 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\exp\left(- \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.PSTHM.Matern21.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern21.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.Matern32">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">Matern32</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern32" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of Matern32 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)
+\exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.PSTHM.Matern32.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern32.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.Matern52">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">Matern52</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern52" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of Matern52 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times
+\frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.PSTHM.Matern52.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.Matern52.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.RBF">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">RBF</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.RBF" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of Radial Basis Function kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).\)</span></div></blockquote>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This kernel also has name <cite>Squared Exponential</cite> in literature.</p>
+</div>
+<dl class="method">
+<dt id="PSTHM.PSTHM.RBF.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.RBF.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.RationalQuadratic">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">RationalQuadratic</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>scale_mixture=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.RationalQuadratic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of RationalQuadratic kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}
+\right)^{-\alpha}.\)</span></div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>scale_mixture</strong> (<em>torch.Tensor</em>) – Scale mixture (<span class="math notranslate nohighlight">\(\alpha\)</span>) parameter of this
+kernel. Should have size 1.</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.PSTHM.RationalQuadratic.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.RationalQuadratic.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.WhiteNoise">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">WhiteNoise</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em>, <em>sp=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.WhiteNoise" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.PSTHM.Isotropy" title="PSTHM.PSTHM.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.PSTHM.Isotropy</span></code></a></p>
+<p>Implementation of WhiteNoise kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2 \delta(x, z),\)</span></div></blockquote>
+<p>where <span class="math notranslate nohighlight">\(\delta\)</span> is a Dirac delta function.</p>
+<dl class="method">
+<dt id="PSTHM.PSTHM.WhiteNoise.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.WhiteNoise.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_MSE">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_MSE</code><span class="sig-paren">(</span><em>y</em>, <em>yhat</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_MSE" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate MSE coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_geo_dist2">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_geo_dist2</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_geo_dist2" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate the squared distance matrix between each pair of X.
+The function takes a PyTorch tensor of X and returns a matrix
+where matrix[i, j] represents the spatial distance between the i-th and j-th X.</p>
+<p>——-Inputs——-
+X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+R: approximate radius of earth in km</p>
+<p>——-Outputs——-
+distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_likelihood">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_likelihood</code><span class="sig-paren">(</span><em>y</em>, <em>y_std</em>, <em>pred</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_likelihood" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function used to calcualte log likelihood function for a given prediction.
+This calculation only considers uncertainty in y axis.</p>
+<p>————Inputs——————
+y: reconstructed rsl
+y_std: standard deviation of reconstructed rsl
+pred: mean predction of rsl</p>
+<p>————Outputs——————
+likelihood: mean likelihood of prediction fit to observation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_misfit">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_misfit</code><span class="sig-paren">(</span><em>y</em>, <em>y_sigma</em>, <em>prediction</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_misfit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_rate_var">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_rate_var</code><span class="sig-paren">(</span><em>test_X</em>, <em>cov_matrix</em>, <em>mean_rsl</em>, <em>difftimestep=200</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_rate_var" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+GP).
+——————Inputs—————————-
+test_X: an array of test input values
+cov_matrix: full covariance matrix from GP regression
+mean_rsl: GP regression produced mean RSL prediction
+difftimestep: time period for averaging</p>
+<p>——————Outputs—————————
+difftimes: time series for the outputs
+rate: averaged sea-level change rate
+rate_sd: averaged sea-level change rate standard deviation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.cal_wMSE">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">cal_wMSE</code><span class="sig-paren">(</span><em>y</em>, <em>yhat</em>, <em>y_sigma</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.cal_wMSE" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate weighted MSE coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.change_point_model">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">change_point_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>n_cp</em>, <em>intercept_prior</em>, <em>coefficient_prior</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.change_point_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a change-point model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+n_cp: int, number of change-points
+intercept_prior: pyro distribution for the intercept coefficient
+coefficient_prior: pyro distribution for the slope coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.decompose_kernels">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">decompose_kernels</code><span class="sig-paren">(</span><em>gpr</em>, <em>pred_matrix</em>, <em>kernels</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.decompose_kernels" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate different kernels contribution to final prediction</p>
+<p>——————Inputs—————————-
+gpr: an optimized pyro GP regression model
+pred_matrix: a torch tensor of prediction matrix containing the data points for prediction
+kernels: a list of pyro kernels for decomposition</p>
+<p>——————Outputs—————————
+output: a list of tuples, each tuple contains the mean and covariance of the prediction for each kernel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.ensemble_GIA_model">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">ensemble_GIA_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>model_ensemble</em>, <em>model_age</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.ensemble_GIA_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a linear model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.gen_pred_matrix">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">gen_pred_matrix</code><span class="sig-paren">(</span><em>age</em>, <em>lat</em>, <em>lon</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.gen_pred_matrix" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to generate an input matrix for Spatio-temporal GP model</p>
+<p>———-Inputs—————-
+age: a numpy array, age of the prediction points
+lat: a numpy array, latitude of the prediction points
+lon: a numpy array, longitude of the prediction points</p>
+<p>———-Outputs—————-
+output_matrix: a torch tensor, input matrix for the spatio-temporal GP model</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.linear_model">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">linear_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>intercept_prior</em>, <em>coefficient_prior</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.linear_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a linear model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+intercept_prior: pyro distribution for the intercept coefficient
+coefficient_prior: pyro distribution for the slope coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.load_PSMSL_data">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">load_PSMSL_data</code><span class="sig-paren">(</span><em>data_folder</em>, <em>min_lat=25</em>, <em>max_lat=50</em>, <em>min_lon=-90</em>, <em>max_lon=-60</em>, <em>min_time_span=100</em>, <em>latest_age=2000</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.load_PSMSL_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load annual sea-level data from PSMSL (<a class="reference external" href="https://psmsl.org/">https://psmsl.org/</a>), note the site file should be copy and pasted into the data folder.
+We have filtered out data with -99999 value, missing data (with ‘Y’ indicated) or any flagged data (i.e., the fourth column is not 0).
+———Inputs———
+data_folder: str, the path to the data folder
+min_lat: float, the minimum latitude of the region of interest
+max_lat: float, the maximum latitude of the region of interest
+min_lon: float, the minimum longitude of the region of interest
+max_lon: float, the maximum longitude of the region of interest</p>
+<p>———Outputs———
+US_AT_data: a list containing US Atlantic coast data</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.load_local_rsl_data">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">load_local_rsl_data</code><span class="sig-paren">(</span><em>file</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.load_local_rsl_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load rsl data from a csv file, this csv 
+file should be presented in the same format as NJ_CC.csv in data folder</p>
+<p>———Inputs———
+file: str, the path to the csv file</p>
+<p>———Outputs———
+X: torch.tensor, the age of rsl data
+y: torch.tensor, the rsl data
+y_sigma: torch.tensor, one sigma uncertainty of rsl data
+x_sigma: torch.tensor, one uncertainty of age data</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.load_regional_rsl_data">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">load_regional_rsl_data</code><span class="sig-paren">(</span><em>file</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.load_regional_rsl_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load rsl data from a csv file, this csv 
+file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder</p>
+<p>———Inputs———
+file: str, the path to the csv file</p>
+<p>———Outputs———
+marine_limiting: a list containing marine limiting data (details below)
+SLIP: a list containing sea-level index point data
+terrestrial limiting: a list containing terrestrial limiting data</p>
+<p>data within each list:
+X: torch.tensor, the age of rsl data
+y: torch.tensor, the rsl data
+y_sigma: torch.tensor, one sigma uncertainty of rsl data
+x_sigma: torch.tensor, one uncertainty of age data
+lon: numpy.array, 
+rsl_region: a number indicating the region where data locates at</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.PSTHM.mcmc_predict">
+<code class="descclassname">PSTHM.PSTHM.</code><code class="descname">mcmc_predict</code><span class="sig-paren">(</span><em>input_gpr</em>, <em>mcmc</em>, <em>Xnew</em>, <em>thin_index=1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.mcmc_predict" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to prediction posterior mean and covariance of GP regression model</p>
+<p>———-Inputs———-
+input_gpr: a pyro GP regression model
+mcmc: a pyro MCMC object
+Xnew: a torch tensor of new input data</p>
+<p>———-Outputs———-
+full_bayes_mean_mean: a numpy array of posterior mean of GP regression model
+full_bayes_cov_mean: a numpy array of posterior covariance of GP regression model
+full_bayes_std_mean: a numpy array of posterior standard deviation of GP regression model</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.opti">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">opti</code><a class="headerlink" href="#PSTHM.PSTHM.opti" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.opti.NUTS_mcmc">
+<em class="property">classmethod </em><code class="descname">NUTS_mcmc</code><span class="sig-paren">(</span><em>gpr</em>, <em>num_samples=1500</em>, <em>warmup_steps=200</em>, <em>target_accept_prob=0.8</em>, <em>print_stats=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.opti.NUTS_mcmc" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to run NUTS MCMC for GP regression model</p>
+<p>———-Inputs———
+gpr: a pyro GP regression model
+num_samples: number of samples to draw from the posterior
+warmup_steps: number of warmup steps for NUTS
+target_accept_prob: target acceptance probability for NUTS
+print_stats: whether to print the states of the model</p>
+<p>———-Outputs———
+mcmc: a pyro MCMC object</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.opti.SVI_NI_optm">
+<em class="property">classmethod </em><code class="descname">SVI_NI_optm</code><span class="sig-paren">(</span><em>gpr</em>, <em>x_sigma</em>, <em>num_iteration=500</em>, <em>lr=0.05</em>, <em>decay_r=1</em>, <em>step_size=100</em>, <em>gpu=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.opti.SVI_NI_optm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A funciton to optimize the hyperparameters of a GP model using SVI</p>
+<p>———Inputs———–
+gpr: a GP model defined by pyro GPR regression
+x_sigma: one sigma uncertainty for input data
+num_iteration: number of iterations for the optimization
+lr: learning rate for the optimization
+step_size: step size for the learning rate to decay. 
+A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+gpu: whether use gpu to accelerate training 
+———Outputs———–
+gpr: a GP model with optimized hyperparameters
+track: a dictionary of loss</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.opti.SVI_optm">
+<em class="property">classmethod </em><code class="descname">SVI_optm</code><span class="sig-paren">(</span><em>gpr</em>, <em>num_iteration=500</em>, <em>lr=0.05</em>, <em>decay_r=1</em>, <em>step_size=100</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.opti.SVI_optm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A funciton to optimize the hyperparameters of a GP model using SVI</p>
+<p>———Inputs———–
+gpr: a GP model defined by pyro GPR regression
+num_iteration: number of iterations for the optimization
+lr: learning rate for the optimization
+decay_r: decay rate for the learning rate
+step_size: step size for the learning rate to decay. 
+A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.</p>
+<p>———Outputs———–
+gpr: a GP model with optimized hyperparameters
+track: a dictionary of loss</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.opti.opti_pyro_model">
+<em class="property">classmethod </em><code class="descname">opti_pyro_model</code><span class="sig-paren">(</span><em>model</em>, <em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>*args</em>, <em>lr=0.05</em>, <em>number_of_steps=2000</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.opti.opti_pyro_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to optimize the pyro model</p>
+<p>————Inputs————–
+model: PaleoSTeHM model
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+<a href="#id1"><span class="problematic" id="id2">*</span></a>args: prior distributions for the model
+lr: learning rate
+number_of_steps: number of steps to train the model</p>
+<p>————Outputs————–
+guide: the optimized model
+losses: the loss of the model during training</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.PSTHM.plotting">
+<em class="property">class </em><code class="descclassname">PSTHM.PSTHM.</code><code class="descname">plotting</code><a class="headerlink" href="#PSTHM.PSTHM.plotting" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_loss">
+<em class="property">classmethod </em><code class="descname">plot_loss</code><span class="sig-paren">(</span><em>loss</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function used to plot loss function variation</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_spatial_rsl_range">
+<em class="property">classmethod </em><code class="descname">plot_spatial_rsl_range</code><span class="sig-paren">(</span><em>pred_matrix</em>, <em>y_mean</em>, <em>y_var</em>, <em>rsl_lon</em>, <em>rsl_lat</em>, <em>rsl_age</em>, <em>rsl_region</em>, <em>cmap='viridis'</em>, <em>plot_site=False</em>, <em>save_fig=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_spatial_rsl_range" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps</p>
+<p>——–Inputs——–
+pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+y_mean: the mean of the predicted RSL from GP model
+y_var: the covariance matrix of the predicted RSL from GP model
+rsl_lon: the longitude of the RSL data
+rsl_lat: the latitude of the RSL data
+rsl_age: the age of the RSL data
+rsl_region: the region of the RSL data
+cmap: the colormap used in the plot</p>
+<p>——–Outputs——–
+A figure with three subplots, the left subplot is the mean RSL map, the middle subplot is the RSL change rate map,
+the right subplot is the RSL uncertainty map</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_spatial_rsl_single">
+<em class="property">classmethod </em><code class="descname">plot_spatial_rsl_single</code><span class="sig-paren">(</span><em>pred_matrix</em>, <em>y_mean</em>, <em>y_var</em>, <em>cmap='viridis'</em>, <em>save_fig=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_spatial_rsl_single" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the spatial RSL map and uncertainty map</p>
+<p>——Inputs——
+pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+y_mean: the mean of the predicted RSL
+y_var: the covariance matrix of the predicted RSL</p>
+<p>——Outputs——
+A figure with two subplots, the left subplot is the RSL map, the right subplot is the RSL uncertainty map</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_tem_regression">
+<em class="property">classmethod </em><code class="descname">plot_tem_regression</code><span class="sig-paren">(</span><em>data_age</em>, <em>data_rsl</em>, <em>data_age_sigma</em>, <em>data_rsl_sigma</em>, <em>mean_rsl_age</em>, <em>mean_rsl</em>, <em>rsl_sd</em>, <em>rsl_rate_age</em>, <em>mean_rate</em>, <em>rate_sd</em>, <em>color='C0'</em>, <em>axes=None</em>, <em>save=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_tem_regression" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to create matplotlib plot for temporal regression results.</p>
+<p>—————–Inputs——————-
+data_age: a 1-D array of rsl age data
+data_rsl: a 1-D array of rsl data
+data_age_sigma: a 1-D array containing 1 sigma uncertainty of rsl age data
+data_rsl_sigma: a 1-D array containing 1 sigma uncertainty of rsl data
+mean_rsl_age: a 1-D array of testing age data, i.e., new_X for GP regression
+mean_rsl: a 1-D array of mean rsl regression results
+rsl_sd: a 1-D array of rsl regression standard deviation
+rsl_rate_age: a 1-D array of testing age data for rsl rate
+rsd_rate: a 1-D array of mean rsl rate regression results
+rate_sd: a 1-D array of rsl rate regression standard deviation
+axes: matplotlib axes, if None, create a new figure
+save: bool, whether to save the plot</p>
+<p>—————Output——————-
+A matplotlib plot of temporal regression results which contains
+three sub-plots: 1) RSL data with uncertainty box and mean regression line; 2) RSL rate
+with uncertainty box and mean regression line; 3) Residual plot.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_track_list">
+<em class="property">classmethod </em><code class="descname">plot_track_list</code><span class="sig-paren">(</span><em>track_list</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_track_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the track_list generated from SVI_optm function</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="PSTHM.PSTHM.plotting.plot_uncertainty_boxes">
+<em class="property">classmethod </em><code class="descname">plot_uncertainty_boxes</code><span class="sig-paren">(</span><em>x</em>, <em>y</em>, <em>x_error</em>, <em>y_error</em>, <em>ax=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.PSTHM.plotting.plot_uncertainty_boxes" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot uncertainty box for data with vertical and horizontal uncertainties.</p>
+<p>—————–Input——————-
+x: a 1-D array of input data
+y: a 1-D array of ouput data
+x_error: a 1-D array containing 2 sigma uncertainty of input data
+y_error: a 1-D array containing 2 sigma uncertainty of output data</p>
+<p>—————Return——————-
+ax: a matplotlib ax of output plot</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.kernels">
+<span id="psthm-kernels-module"></span><h2>PSTHM.kernels module<a class="headerlink" href="#module-PSTHM.kernels" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="PSTHM.kernels.Combination">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Combination</code><span class="sig-paren">(</span><em>kern0</em>, <em>kern1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Combination" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Base class for kernels derived from a combination of kernels.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>kern0</strong> (<em>Kernel</em>) – First kernel to combine.</li>
+<li><strong>kern1</strong> (<em>Kernel</em><em> or </em><em>numbers.Number</em>) – Second kernel to combine.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Constant">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Constant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Implementation of Constant kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2.\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.kernels.Constant.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Constant.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Cosine">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Cosine</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Cosine" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Cosine kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z) = \sigma^2 \cos\left(\frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lengthscale</strong> (<em>torch.Tensor</em>) – Length-scale parameter of this kernel.</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.kernels.Cosine.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Cosine.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.DotProduct">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">DotProduct</code><span class="sig-paren">(</span><em>input_dim</em>, <em>ref_year=None</em>, <em>variance=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.DotProduct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Base class for kernels which are functions of <span class="math notranslate nohighlight">\(x \cdot z\)</span>.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Exponential">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Exponential</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Exponential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Exponential kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.kernels.Exponential.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Exponential.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Isotropy">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Isotropy</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em>, <em>sp=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Isotropy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Base class for a family of isotropic covariance kernels which are functions of the
+distance <span class="math notranslate nohighlight">\(|x-z|/l\)</span>, where <span class="math notranslate nohighlight">\(l\)</span> is the length-scale parameter.</p>
+<p>By default, the parameter <code class="docutils literal notranslate"><span class="pre">lengthscale</span></code> has size 1. To use the isotropic version
+(different lengthscale for each dimension), make sure that <code class="docutils literal notranslate"><span class="pre">lengthscale</span></code> has size
+equal to <code class="docutils literal notranslate"><span class="pre">input_dim</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lengthscale</strong> (<em>torch.Tensor</em>) – Length-scale parameter of this kernel.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Linear">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Linear</code><span class="sig-paren">(</span><em>input_dim</em>, <em>ref_year=None</em>, <em>variance=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Linear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.DotProduct" title="PSTHM.kernels.DotProduct"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.DotProduct</span></code></a></p>
+<p>Implementation of Linear kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2 x \cdot z.\)</span></div></blockquote>
+<p>Doing Gaussian Process regression with linear kernel is equivalent to doing a
+linear regression.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Here we implement the homogeneous version. To use the inhomogeneous
+version, consider using <a class="reference internal" href="#PSTHM.kernels.Polynomial" title="PSTHM.kernels.Polynomial"><code class="xref py py-class docutils literal notranslate"><span class="pre">Polynomial</span></code></a> kernel with <code class="docutils literal notranslate"><span class="pre">degree=1</span></code> or making
+a <a class="reference internal" href="#PSTHM.kernels.Sum" title="PSTHM.kernels.Sum"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sum</span></code></a> with a <a class="reference internal" href="#PSTHM.kernels.Constant" title="PSTHM.kernels.Constant"><code class="xref py py-class docutils literal notranslate"><span class="pre">Constant</span></code></a> kernel.</p>
+</div>
+<dl class="method">
+<dt id="PSTHM.kernels.Linear.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Linear.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Matern21">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Matern21</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern21" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Matern21 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\exp\left(- \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.kernels.Matern21.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern21.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Matern32">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Matern32</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern32" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Matern32 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)
+\exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.kernels.Matern32.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern32.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Matern52">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Matern52</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern52" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Matern52 kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times
+\frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).\)</span></div></blockquote>
+<dl class="method">
+<dt id="PSTHM.kernels.Matern52.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Matern52.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Periodic">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Periodic</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>period=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Periodic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Implementation of Periodic kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z)=\sigma^2\exp\left(-2\times\frac{\sin^2(\pi(x-z)/p)}{l^2}\right),\)</span></div></blockquote>
+<p>where <span class="math notranslate nohighlight">\(p\)</span> is the <code class="docutils literal notranslate"><span class="pre">period</span></code> parameter.</p>
+<p>References:</p>
+<p>[1] <cite>Introduction to Gaussian processes</cite>,
+David J.C. MacKay</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>lengthscale</strong> (<em>torch.Tensor</em>) – Length scale parameter of this kernel.</li>
+<li><strong>period</strong> (<em>torch.Tensor</em>) – Period parameter of this kernel.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.kernels.Periodic.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Periodic.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Polynomial">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Polynomial</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>bias=None</em>, <em>degree=1</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Polynomial" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.DotProduct" title="PSTHM.kernels.DotProduct"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.DotProduct</span></code></a></p>
+<p>Implementation of Polynomial kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2(\text{bias} + x \cdot z)^d.\)</span></div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>bias</strong> (<em>torch.Tensor</em>) – Bias parameter of this kernel. Should be positive.</li>
+<li><strong>degree</strong> (<em>int</em>) – Degree <span class="math notranslate nohighlight">\(d\)</span> of the polynomial.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.kernels.Polynomial.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Polynomial.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Product">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Product</code><span class="sig-paren">(</span><em>kern0</em>, <em>kern1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Product" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Combination" title="PSTHM.kernels.Combination"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Combination</span></code></a></p>
+<p>Returns a new kernel which acts like a product/tensor product of two kernels.
+The second kernel can be a constant.</p>
+<dl class="method">
+<dt id="PSTHM.kernels.Product.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Product.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.RBF">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">RBF</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.RBF" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of Radial Basis Function kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).\)</span></div></blockquote>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This kernel also has name <cite>Squared Exponential</cite> in literature.</p>
+</div>
+<dl class="method">
+<dt id="PSTHM.kernels.RBF.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.RBF.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.RationalQuadratic">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">RationalQuadratic</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>scale_mixture=None</em>, <em>active_dims=None</em>, <em>geo=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.RationalQuadratic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of RationalQuadratic kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}
+\right)^{-\alpha}.\)</span></div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>scale_mixture</strong> (<em>torch.Tensor</em>) – Scale mixture (<span class="math notranslate nohighlight">\(\alpha\)</span>) parameter of this
+kernel. Should have size 1.</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.kernels.RationalQuadratic.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.RationalQuadratic.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.Sum">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">Sum</code><span class="sig-paren">(</span><em>kern0</em>, <em>kern1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Sum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Combination" title="PSTHM.kernels.Combination"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Combination</span></code></a></p>
+<p>Returns a new kernel which acts like a sum/direct sum of two kernels.
+The second kernel can be a constant.</p>
+<dl class="method">
+<dt id="PSTHM.kernels.Sum.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.Sum.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.WhiteNoise">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">WhiteNoise</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>active_dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.WhiteNoise" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>Implementation of WhiteNoise kernel:</p>
+<blockquote>
+<div><span class="math notranslate nohighlight">\(k(x, z) = \sigma^2 \delta(x, z),\)</span></div></blockquote>
+<p>where <span class="math notranslate nohighlight">\(\delta\)</span> is a Dirac delta function.</p>
+<dl class="method">
+<dt id="PSTHM.kernels.WhiteNoise.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.WhiteNoise.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.kernels.WhiteNoise_SP">
+<em class="property">class </em><code class="descclassname">PSTHM.kernels.</code><code class="descname">WhiteNoise_SP</code><span class="sig-paren">(</span><em>input_dim</em>, <em>variance=None</em>, <em>lengthscale=None</em>, <em>s_lengthscale=None</em>, <em>active_dims=None</em>, <em>geo=False</em>, <em>sp=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.WhiteNoise_SP" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#PSTHM.kernels.Isotropy" title="PSTHM.kernels.Isotropy"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSTHM.kernels.Isotropy</span></code></a></p>
+<p>Implementation of WhiteNoise kernel with multiple choices of spatial and temporal correlation:</p>
+<p>if geo==True, then the kernel is spatially uncorrelated
+if geo==False, then the kernel is a whiet noise kernel</p>
+<dl class="method">
+<dt id="PSTHM.kernels.WhiteNoise_SP.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em>, <em>diag=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.WhiteNoise_SP.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.kernels.check_geo_dim">
+<code class="descclassname">PSTHM.kernels.</code><code class="descname">check_geo_dim</code><span class="sig-paren">(</span><em>X</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.check_geo_dim" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to check if the dimension of X is correct.</p>
+<p>——-Inputs——-
+X: PyTorch tensor input for Gaussian Process</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.kernels.check_pseudo">
+<code class="descclassname">PSTHM.kernels.</code><code class="descname">check_pseudo</code><span class="sig-paren">(</span><em>X</em>, <em>Z</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.kernels.check_pseudo" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to make sure there’s no correlation between pseudo data and real data.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.load">
+<span id="psthm-load-module"></span><h2>PSTHM.load module<a class="headerlink" href="#module-PSTHM.load" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="PSTHM.load.load_PSMSL_data">
+<code class="descclassname">PSTHM.load.</code><code class="descname">load_PSMSL_data</code><span class="sig-paren">(</span><em>data_folder</em>, <em>min_lat=25</em>, <em>max_lat=50</em>, <em>min_lon=-90</em>, <em>max_lon=-60</em>, <em>min_time_span=100</em>, <em>latest_age=2000</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.load.load_PSMSL_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load annual sea-level data from PSMSL (<a class="reference external" href="https://psmsl.org/">https://psmsl.org/</a>), note the site file should be copy and pasted into the data folder.
+We have filtered out data with -99999 value, missing data (with ‘Y’ indicated) or any flagged data (i.e., the fourth column is not 0).
+———Inputs———
+data_folder: str, the path to the data folder
+min_lat: float, the minimum latitude of the region of interest
+max_lat: float, the maximum latitude of the region of interest
+min_lon: float, the minimum longitude of the region of interest
+max_lon: float, the maximum longitude of the region of interest</p>
+<p>———Outputs———
+US_AT_data: a list containing US Atlantic coast data</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.load.load_local_rsl_data">
+<code class="descclassname">PSTHM.load.</code><code class="descname">load_local_rsl_data</code><span class="sig-paren">(</span><em>file</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.load.load_local_rsl_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load rsl data from a csv file, this csv 
+file should be presented in the same format as NJ_CC.csv in data folder</p>
+<p>———Inputs———
+file: str, the path to the csv file</p>
+<p>———Outputs———
+X: torch.tensor, the age of rsl data
+y: torch.tensor, the rsl data
+y_sigma: torch.tensor, one sigma uncertainty of rsl data
+x_sigma: torch.tensor, one uncertainty of age data</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.load.load_regional_rsl_data">
+<code class="descclassname">PSTHM.load.</code><code class="descname">load_regional_rsl_data</code><span class="sig-paren">(</span><em>file</em>, <em>CE=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.load.load_regional_rsl_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to load rsl data from a csv file, this csv 
+file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder</p>
+<p>———Inputs———
+file: str, the path to the csv file</p>
+<p>———Outputs———
+marine_limiting: a list containing marine limiting data (details below)
+SLIP: a list containing sea-level index point data
+terrestrial limiting: a list containing terrestrial limiting data</p>
+<p>data within each list:
+X: torch.tensor, the age of rsl data
+y: torch.tensor, the rsl data
+y_sigma: torch.tensor, one sigma uncertainty of rsl data
+x_sigma: torch.tensor, one uncertainty of age data
+lon: numpy.array, 
+rsl_region: a number indicating the region where data locates at</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.model">
+<span id="psthm-model-module"></span><h2>PSTHM.model module<a class="headerlink" href="#module-PSTHM.model" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="PSTHM.model.GIA_ensemble">
+<em class="property">class </em><code class="descclassname">PSTHM.model.</code><code class="descname">GIA_ensemble</code><span class="sig-paren">(</span><em>GIA_model_interp</em>, <em>input_dim=1</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GIA_ensemble" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.kernels.kernel.Kernel</span></code></p>
+<p>This is a class to define a GIA ensemble model as the mean function for GP</p>
+<p>————Inputs————–
+GIA_model_interp: a list of interpolation function that can 3D interpolate the
+RSL history predicted by a GIA model</p>
+<p>————Outputs————–
+mean: the prediction of the GIA ensemble model</p>
+<dl class="method">
+<dt id="PSTHM.model.GIA_ensemble.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>X</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GIA_ensemble.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates covariance matrix of inputs on active dimensionals.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A 2D tensor with shape <span class="math notranslate nohighlight">\(N \times input\_dim\)</span>.</li>
+<li><strong>Z</strong> (<em>torch.Tensor</em>) – An (optional) 2D tensor with shape
+<span class="math notranslate nohighlight">\(M \times input\_dim\)</span>.</li>
+<li><strong>diag</strong> (<em>bool</em>) – A flag to decide if we want to return full covariance matrix
+or just its diagonal part.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">covariance matrix of <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> with shape
+<span class="math notranslate nohighlight">\(N \times M\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">torch.Tensor</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.model.GPRegression_EIV">
+<em class="property">class </em><code class="descclassname">PSTHM.model.</code><code class="descname">GPRegression_EIV</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_noise</em>, <em>kernel</em>, <em>noise=None</em>, <em>mean_function=None</em>, <em>jitter=1e-06</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_EIV" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.models.model.GPModel</span></code></p>
+<p>Gaussian Process Regression model.</p>
+<p>The core of a Gaussian Process is a covariance function <span class="math notranslate nohighlight">\(k\)</span> which governs
+the similarity between input points. Given <span class="math notranslate nohighlight">\(k\)</span>, we can establish a
+distribution over functions <span class="math notranslate nohighlight">\(f\)</span> by a multivarite normal distribution</p>
+<div class="math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(0, k(X, X)),\]</div>
+<p>where <span class="math notranslate nohighlight">\(X\)</span> is any set of input points and <span class="math notranslate nohighlight">\(k(X, X)\)</span> is a covariance
+matrix whose entries are outputs <span class="math notranslate nohighlight">\(k(x, z)\)</span> of <span class="math notranslate nohighlight">\(k\)</span> over input pairs
+<span class="math notranslate nohighlight">\((x, z)\)</span>. This distribution is usually denoted by</p>
+<div class="math notranslate nohighlight">
+\[f \sim \mathcal{GP}(0, k).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Generally, beside a covariance matrix <span class="math notranslate nohighlight">\(k\)</span>, a Gaussian Process can
+also be specified by a mean function <span class="math notranslate nohighlight">\(m\)</span> (which is a zero-value function
+by default). In that case, its distribution will be</p>
+<div class="last math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(m(X), k(X, X)).\]</div>
+</div>
+<p>Given inputs <span class="math notranslate nohighlight">\(X\)</span> and their noisy observations <span class="math notranslate nohighlight">\(y\)</span>, the Gaussian Process
+Regression model takes the form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f &amp;\sim \mathcal{GP}(0, k(X, X)),\\
+y &amp; \sim f + \epsilon,\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon\)</span> is Gaussian noise.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This model has <span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for training,
+<span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for testing. Here, <span class="math notranslate nohighlight">\(N\)</span> is the number
+of train inputs.</p>
+</div>
+<p>Reference:</p>
+<p>[1] <cite>Gaussian Processes for Machine Learning</cite>,
+Carl E. Rasmussen, Christopher K. I. Williams</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A input data for training. Its first dimension is the number
+of data points.</li>
+<li><strong>y</strong> (<em>torch.Tensor</em>) – An output data for training. Its last dimension is the
+number of data points.</li>
+<li><strong>kernel</strong> (<em>Kernel</em>) – A Pyro kernel object, which
+is the covariance function <span class="math notranslate nohighlight">\(k\)</span>.</li>
+<li><strong>x_noise</strong> – A input data for training. Its first dimension is the number, representing 
+the variance of the error for age, which is usually obtained from radiocarbon dating</li>
+<li><strong>noise</strong> (<em>torch.Tensor</em>) – Variance of Gaussian noise of this model.</li>
+<li><strong>mean_function</strong> (<em>callable</em>) – An optional mean function <span class="math notranslate nohighlight">\(m\)</span> of this Gaussian
+process. By default, we use zero mean.</li>
+<li><strong>jitter</strong> (<em>float</em>) – A small positive term which is added into the diagonal part of
+a covariance matrix to help stablize its Cholesky decomposition.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_EIV.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>Xnew</em>, <em>full_cov=False</em>, <em>noiseless=True</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_EIV.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the mean and covariance matrix (or variance) of Gaussian Process
+posterior on a test input data <span class="math notranslate nohighlight">\(X_{new}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The noise parameter <code class="docutils literal notranslate"><span class="pre">noise</span></code> (<span class="math notranslate nohighlight">\(\epsilon\)</span>) together with
+kernel’s parameters have been learned from a training procedure (MCMC or
+SVI).</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Xnew</strong> (<em>torch.Tensor</em>) – A input data for testing. Note that
+<code class="docutils literal notranslate"><span class="pre">Xnew.shape[1:]</span></code> must be the same as <code class="docutils literal notranslate"><span class="pre">self.X.shape[1:]</span></code>.</li>
+<li><strong>full_cov</strong> (<em>bool</em>) – A flag to decide if we want to predict full covariance
+matrix or just variance.</li>
+<li><strong>noiseless</strong> (<em>bool</em>) – A flag to decide if we want to include noise in the
+prediction output or not.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">loc and covariance matrix (or variance) of <span class="math notranslate nohighlight">\(p(f^*(X_{new}))\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">tuple(torch.Tensor, torch.Tensor)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_EIV.guide">
+<code class="descname">guide</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_EIV.guide" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “guide” stochastic function to be used in variational inference methods. It
+also gives posterior information to the method <a class="reference internal" href="#PSTHM.model.GPRegression_EIV.forward" title="PSTHM.model.GPRegression_EIV.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> for prediction.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_EIV.model">
+<code class="descname">model</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_EIV.model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “model” stochastic function. If <code class="docutils literal notranslate"><span class="pre">self.y</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>, this method returns
+mean and variance of the Gaussian Process prior.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="PSTHM.model.GPRegression_V">
+<em class="property">class </em><code class="descclassname">PSTHM.model.</code><code class="descname">GPRegression_V</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>kernel</em>, <em>noise=None</em>, <em>mean_function=None</em>, <em>jitter=1e-06</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_V" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pyro.contrib.gp.models.model.GPModel</span></code></p>
+<p>Gaussian Process Regression model.</p>
+<p>The core of a Gaussian Process is a covariance function <span class="math notranslate nohighlight">\(k\)</span> which governs
+the similarity between input points. Given <span class="math notranslate nohighlight">\(k\)</span>, we can establish a
+distribution over functions <span class="math notranslate nohighlight">\(f\)</span> by a multivarite normal distribution</p>
+<div class="math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(0, k(X, X)),\]</div>
+<p>where <span class="math notranslate nohighlight">\(X\)</span> is any set of input points and <span class="math notranslate nohighlight">\(k(X, X)\)</span> is a covariance
+matrix whose entries are outputs <span class="math notranslate nohighlight">\(k(x, z)\)</span> of <span class="math notranslate nohighlight">\(k\)</span> over input pairs
+<span class="math notranslate nohighlight">\((x, z)\)</span>. This distribution is usually denoted by</p>
+<div class="math notranslate nohighlight">
+\[f \sim \mathcal{GP}(0, k).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Generally, beside a covariance matrix <span class="math notranslate nohighlight">\(k\)</span>, a Gaussian Process can
+also be specified by a mean function <span class="math notranslate nohighlight">\(m\)</span> (which is a zero-value function
+by default). In that case, its distribution will be</p>
+<div class="last math notranslate nohighlight">
+\[p(f(X)) = \mathcal{N}(m(X), k(X, X)).\]</div>
+</div>
+<p>Given inputs <span class="math notranslate nohighlight">\(X\)</span> and their noisy observations <span class="math notranslate nohighlight">\(y\)</span>, the Gaussian Process
+Regression model takes the form</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f &amp;\sim \mathcal{GP}(0, k(X, X)),\\
+y &amp; \sim f + \epsilon,\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon\)</span> is Gaussian noise.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This model has <span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for training,
+<span class="math notranslate nohighlight">\(\mathcal{O}(N^3)\)</span> complexity for testing. Here, <span class="math notranslate nohighlight">\(N\)</span> is the number
+of train inputs.</p>
+</div>
+<p>Reference:</p>
+<p>[1] <cite>Gaussian Processes for Machine Learning</cite>,
+Carl E. Rasmussen, Christopher K. I. Williams</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>X</strong> (<em>torch.Tensor</em>) – A input data for training. Its first dimension is the number
+of data points.</li>
+<li><strong>y</strong> (<em>torch.Tensor</em>) – An output data for training. Its last dimension is the
+number of data points.</li>
+<li><strong>kernel</strong> (<em>Kernel</em>) – A Pyro kernel object, which
+is the covariance function <span class="math notranslate nohighlight">\(k\)</span>.</li>
+<li><strong>noise</strong> (<em>torch.Tensor</em>) – Variance of Gaussian noise of this model.</li>
+<li><strong>mean_function</strong> (<em>callable</em>) – An optional mean function <span class="math notranslate nohighlight">\(m\)</span> of this Gaussian
+process. By default, we use zero mean.</li>
+<li><strong>jitter</strong> (<em>float</em>) – A small positive term which is added into the diagonal part of
+a covariance matrix to help stablize its Cholesky decomposition.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_V.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>Xnew</em>, <em>full_cov=False</em>, <em>noiseless=True</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_V.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the mean and covariance matrix (or variance) of Gaussian Process
+posterior on a test input data <span class="math notranslate nohighlight">\(X_{new}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).\]</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The noise parameter <code class="docutils literal notranslate"><span class="pre">noise</span></code> (<span class="math notranslate nohighlight">\(\epsilon\)</span>) together with
+kernel’s parameters have been learned from a training procedure (MCMC or
+SVI).</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Xnew</strong> (<em>torch.Tensor</em>) – A input data for testing. Note that
+<code class="docutils literal notranslate"><span class="pre">Xnew.shape[1:]</span></code> must be the same as <code class="docutils literal notranslate"><span class="pre">self.X.shape[1:]</span></code>.</li>
+<li><strong>full_cov</strong> (<em>bool</em>) – A flag to decide if we want to predict full covariance
+matrix or just variance.</li>
+<li><strong>noiseless</strong> (<em>bool</em>) – A flag to decide if we want to include noise in the
+prediction output or notest_cov[i:i+1]t.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">loc and covariance matrix (or variance) of <span class="math notranslate nohighlight">\(p(f^*(X_{new}))\)</span></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">tuple(torch.Tensor, torch.Tensor)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_V.guide">
+<code class="descname">guide</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_V.guide" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “guide” stochastic function to be used in variational inference methods. It
+also gives posterior information to the method <a class="reference internal" href="#PSTHM.model.GPRegression_V.forward" title="PSTHM.model.GPRegression_V.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> for prediction.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="PSTHM.model.GPRegression_V.model">
+<code class="descname">model</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.GPRegression_V.model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A “model” stochastic function. If <code class="docutils literal notranslate"><span class="pre">self.y</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code>, this method returns
+mean and variance of the Gaussian Process prior.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.model.change_point_model">
+<code class="descclassname">PSTHM.model.</code><code class="descname">change_point_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>n_cp</em>, <em>intercept_prior</em>, <em>coefficient_prior</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.change_point_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a change-point model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+n_cp: int, number of change-points
+intercept_prior: pyro distribution for the intercept coefficient
+coefficient_prior: pyro distribution for the slope coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.model.ensemble_GIA_model">
+<code class="descclassname">PSTHM.model.</code><code class="descname">ensemble_GIA_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>model_ensemble</em>, <em>model_age</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.ensemble_GIA_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a linear model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.model.linear_model">
+<code class="descclassname">PSTHM.model.</code><code class="descname">linear_model</code><span class="sig-paren">(</span><em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>intercept_prior</em>, <em>coefficient_prior</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.model.linear_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to define a linear model in pyro</p>
+<p>————Inputs————–
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+intercept_prior: pyro distribution for the intercept coefficient
+coefficient_prior: pyro distribution for the slope coefficient</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.opti">
+<span id="psthm-opti-module"></span><h2>PSTHM.opti module<a class="headerlink" href="#module-PSTHM.opti" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="PSTHM.opti.NUTS_mcmc">
+<code class="descclassname">PSTHM.opti.</code><code class="descname">NUTS_mcmc</code><span class="sig-paren">(</span><em>gpr</em>, <em>num_samples=1500</em>, <em>warmup_steps=200</em>, <em>target_accept_prob=0.8</em>, <em>print_stats=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.opti.NUTS_mcmc" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to run NUTS MCMC for GP regression model</p>
+<p>———-Inputs———
+gpr: a pyro GP regression model
+num_samples: number of samples to draw from the posterior
+warmup_steps: number of warmup steps for NUTS
+target_accept_prob: target acceptance probability for NUTS
+print_stats: whether to print the states of the model</p>
+<p>———-Outputs———
+mcmc: a pyro MCMC object</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.opti.SVI_NI_optm">
+<code class="descclassname">PSTHM.opti.</code><code class="descname">SVI_NI_optm</code><span class="sig-paren">(</span><em>gpr</em>, <em>x_sigma</em>, <em>num_iteration=500</em>, <em>lr=0.1</em>, <em>decay_r=1</em>, <em>step_size=100</em>, <em>equal_kernels=None</em>, <em>gpu=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.opti.SVI_NI_optm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A funciton to optimize the hyperparameters of a GP model using SVI</p>
+<p>———Inputs———–
+gpr: a GP model defined by pyro GPR regression
+x_sigma: one sigma uncertainty for input data
+num_iteration: number of iterations for the optimization
+lr: learning rate for the optimization
+step_size: step size for the learning rate to decay. 
+A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use
+the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [[‘gpr.kern0.kern0.kern0.lengthscale’,’gpr.kern0.kern1.lengthscale‘]].
+This also supports multiple kernel pairs.</p>
+<p>gpu: whether use gpu to accelerate training 
+———Outputs———–
+gpr: a GP model with optimized hyperparameters
+track: a dictionary of loss</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.opti.SVI_optm">
+<code class="descclassname">PSTHM.opti.</code><code class="descname">SVI_optm</code><span class="sig-paren">(</span><em>gpr</em>, <em>num_iteration=500</em>, <em>lr=0.1</em>, <em>decay_r=1</em>, <em>step_size=100</em>, <em>equal_kernels=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.opti.SVI_optm" title="Permalink to this definition">¶</a></dt>
+<dd><p>A funciton to optimize the hyperparameters of a GP model using SVI</p>
+<p>———Inputs———–
+gpr: a GP model defined by pyro GPR regression
+num_iteration: number of iterations for the optimization
+lr: learning rate for the optimization
+decay_r: decay rate for the learning rate
+step_size: step size for the learning rate to decay. 
+A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
+equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use
+the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [[‘gpr.kern0.kern0.kern0.lengthscale’,’gpr.kern0.kern1.lengthscale‘]].
+This also supports multiple kernel pairs.</p>
+<p>———Outputs———–
+gpr: a GP model with optimized hyperparameters
+track: a dictionary of loss</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.opti.opti_pyro_model">
+<code class="descclassname">PSTHM.opti.</code><code class="descname">opti_pyro_model</code><span class="sig-paren">(</span><em>model</em>, <em>X</em>, <em>y</em>, <em>x_sigma</em>, <em>y_sigma</em>, <em>*args</em>, <em>lr=0.05</em>, <em>number_of_steps=1500</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.opti.opti_pyro_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to optimize the pyro model</p>
+<p>————Inputs————–
+model: PaleoSTeHM model, currently supports: change_point_model, ensemble_GIA_model, linear_model
+X: 2D torch tensor with shape (n_samples,n_features)
+y: 1D torch tensor with shape (n_samples)
+x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+<a href="#id3"><span class="problematic" id="id4">*</span></a>args: prior distributions for the model
+lr: learning rate
+number_of_steps: number of steps to train the model</p>
+<p>————Outputs————–
+guide: the optimized model
+losses: the loss of the model during training</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.plotting">
+<span id="psthm-plotting-module"></span><h2>PSTHM.plotting module<a class="headerlink" href="#module-PSTHM.plotting" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="PSTHM.plotting.plot_loss">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_loss</code><span class="sig-paren">(</span><em>loss</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function used to plot loss function variation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.plotting.plot_spatial_rsl_range">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_spatial_rsl_range</code><span class="sig-paren">(</span><em>pred_matrix</em>, <em>y_mean</em>, <em>y_var</em>, <em>rsl_lon</em>, <em>rsl_lat</em>, <em>rsl_age</em>, <em>rsl_region</em>, <em>cmap='viridis'</em>, <em>plot_site=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_spatial_rsl_range" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the spatial mean RSL, RSL change rate and RSL uncertainty maps</p>
+<p>——–Inputs——–
+pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+y_mean: the mean of the predicted RSL from GP model
+y_var: the covariance matrix of the predicted RSL from GP model
+rsl_lon: the longitude of the RSL data
+rsl_lat: the latitude of the RSL data
+rsl_age: the age of the RSL data
+rsl_region: the region of the RSL data
+cmap: the colormap used in the plot</p>
+<p>——–Outputs——–
+A figure with three subplots, the left subplot is the mean RSL map, the middle subplot is the RSL change rate map,
+the right subplot is the RSL uncertainty map</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.plotting.plot_spatial_rsl_single">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_spatial_rsl_single</code><span class="sig-paren">(</span><em>pred_matrix</em>, <em>y_mean</em>, <em>y_var</em>, <em>cmap='viridis'</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_spatial_rsl_single" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the spatial RSL map and uncertainty map</p>
+<p>——Inputs——
+pred_matrix: a matrix with 3 columns, the first column is the age, the second column is the latitude, the third column is the longitude
+y_mean: the mean of the predicted RSL
+y_var: the covariance matrix of the predicted RSL</p>
+<p>——Outputs——
+A figure with two subplots, the left subplot is the RSL map, the right subplot is the RSL uncertainty map</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.plotting.plot_tem_regression">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_tem_regression</code><span class="sig-paren">(</span><em>data_age</em>, <em>data_rsl</em>, <em>data_age_sigma</em>, <em>data_rsl_sigma</em>, <em>mean_rsl_age</em>, <em>mean_rsl</em>, <em>rsl_sd</em>, <em>rsl_rate_age</em>, <em>mean_rate</em>, <em>rate_sd</em>, <em>color='C0'</em>, <em>axes=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_tem_regression" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to create matplotlib plot for temporal regression results.</p>
+<p>—————–Inputs——————-
+data_age: a 1-D array of rsl age data
+data_rsl: a 1-D array of rsl data
+data_age_sigma: a 1-D array containing 1 sigma uncertainty of rsl age data
+data_rsl_sigma: a 1-D array containing 1 sigma uncertainty of rsl data
+mean_rsl_age: a 1-D array of testing age data, i.e., new_X for GP regression
+mean_rsl: a 1-D array of mean rsl regression results
+rsl_sd: a 1-D array of rsl regression standard deviation
+rsl_rate_age: a 1-D array of testing age data for rsl rate
+rsd_rate: a 1-D array of mean rsl rate regression results
+rate_sd: a 1-D array of rsl rate regression standard deviation
+axes: matplotlib axes, if None, create a new figure
+save: bool, whether to save the plot</p>
+<p>—————Output——————-
+A matplotlib plot of temporal regression results which contains
+three sub-plots: 1) RSL data with uncertainty box and mean regression line; 2) RSL rate
+with uncertainty box and mean regression line; 3) Residual plot.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.plotting.plot_track_list">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_track_list</code><span class="sig-paren">(</span><em>track_list</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_track_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot the track_list generated from SVI_optm function</p>
+<p>——Inputs——
+track_list: a dictionary containing the name and values of tracking variables</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.plotting.plot_uncertainty_boxes">
+<code class="descclassname">PSTHM.plotting.</code><code class="descname">plot_uncertainty_boxes</code><span class="sig-paren">(</span><em>x</em>, <em>y</em>, <em>x_error</em>, <em>y_error</em>, <em>ax=None</em>, <em>CE=False</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.plotting.plot_uncertainty_boxes" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to plot uncertainty box for data with vertical and horizontal uncertainties.</p>
+<p>—————–Input——————-
+x: a 1-D array of input data
+y: a 1-D array of ouput data
+x_error: a 1-D array containing 2 sigma uncertainty of input data
+y_error: a 1-D array containing 2 sigma uncertainty of output data</p>
+<p>—————Return——————-
+ax: a matplotlib ax of output plot</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM.post">
+<span id="psthm-post-module"></span><h2>PSTHM.post module<a class="headerlink" href="#module-PSTHM.post" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="PSTHM.post.cal_MSE">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_MSE</code><span class="sig-paren">(</span><em>y</em>, <em>yhat</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_MSE" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate MSE coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.cal_geo_dist2">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_geo_dist2</code><span class="sig-paren">(</span><em>X</em>, <em>Z=None</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_geo_dist2" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate the squared distance matrix between each pair of X.
+The function takes a PyTorch tensor of X and returns a matrix
+where matrix[i, j] represents the spatial distance between the i-th and j-th X.</p>
+<p>——-Inputs——-
+X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X
+R: approximate radius of earth in km</p>
+<p>——-Outputs——-
+distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.cal_likelihood">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_likelihood</code><span class="sig-paren">(</span><em>y</em>, <em>y_std</em>, <em>pred</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_likelihood" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function used to calcualte log likelihood function for a given prediction.
+This calculation only considers uncertainty in y axis.</p>
+<p>————Inputs——————
+y: reconstructed rsl
+y_std: standard deviation of reconstructed rsl
+pred: mean predction of rsl</p>
+<p>————Outputs——————
+likelihood: mean likelihood of prediction fit to observation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.cal_misfit">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_misfit</code><span class="sig-paren">(</span><em>y</em>, <em>y_sigma</em>, <em>prediction</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_misfit" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.cal_rate_var">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_rate_var</code><span class="sig-paren">(</span><em>test_X</em>, <em>cov_matrix</em>, <em>mean_rsl</em>, <em>difftimestep=200</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_rate_var" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+GP).
+——————Inputs—————————-
+test_X: an array of test input values
+cov_matrix: full covariance matrix from GP regression
+mean_rsl: GP regression produced mean RSL prediction
+difftimestep: time period for averaging</p>
+<p>——————Outputs—————————
+difftimes: time series for the outputs
+rate: averaged sea-level change rate
+rate_sd: averaged sea-level change rate standard deviation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.cal_wMSE">
+<code class="descclassname">PSTHM.post.</code><code class="descname">cal_wMSE</code><span class="sig-paren">(</span><em>y</em>, <em>yhat</em>, <em>y_sigma</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.cal_wMSE" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate weighted MSE coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.change_point_forward">
+<code class="descclassname">PSTHM.post.</code><code class="descname">change_point_forward</code><span class="sig-paren">(</span><em>n_cp</em>, <em>cp_loc_list</em>, <em>new_X</em>, <em>data_X</em>, <em>beta_coef_list</em>, <em>b</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.change_point_forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate the forward model of the change-point model</p>
+<p>————Inputs————–
+n_cp: int, number of change-points
+cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points
+new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction
+data_X: 2D torch tensor with shape (n_samples,n_features) for training data
+beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients
+b: float, the intercept coefficient</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.decompose_kernels">
+<code class="descclassname">PSTHM.post.</code><code class="descname">decompose_kernels</code><span class="sig-paren">(</span><em>gpr</em>, <em>pred_matrix</em>, <em>kernels</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.decompose_kernels" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to calculate different kernels contribution to final prediction</p>
+<p>——————Inputs—————————-
+gpr: an optimized pyro GP regression model
+pred_matrix: a torch tensor of prediction matrix containing the data points for prediction
+kernels: a list of pyro kernels for decomposition</p>
+<p>——————Outputs—————————
+output: a list of tuples, each tuple contains the mean and covariance of the prediction for each kernel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.gen_pred_matrix">
+<code class="descclassname">PSTHM.post.</code><code class="descname">gen_pred_matrix</code><span class="sig-paren">(</span><em>age</em>, <em>lat</em>, <em>lon</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.gen_pred_matrix" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to generate an input matrix for Spatio-temporal GP model</p>
+<p>———-Inputs—————-
+age: a numpy array, age of the prediction points
+lat: a numpy array, latitude of the prediction points
+lon: a numpy array, longitude of the prediction points</p>
+<p>———-Outputs—————-
+output_matrix: a torch tensor, input matrix for the spatio-temporal GP model</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="PSTHM.post.get_change_point_posterior">
+<code class="descclassname">PSTHM.post.</code><code class="descname">get_change_point_posterior</code><span class="sig-paren">(</span><em>guide</em>, <em>sample_number</em><span class="sig-paren">)</span><a class="headerlink" href="#PSTHM.post.get_change_point_posterior" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-PSTHM">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-PSTHM" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">PaleoSTeHM</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">PSTHM</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">PSTHM package</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">PSTHM</a><ul>
+      <li>Previous: <a href="modules.html" title="previous chapter">PSTHM</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="_sources/PSTHM.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
