@@ -231,7 +231,7 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
 
     return mcmc
 
-def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=1500):
+def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=500):
     '''
     A function to optimize the pyro model
 
