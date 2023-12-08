@@ -1,6 +1,4 @@
 # PaleoSTeHM - A modern, scalable Spatio-Temporal Hierarchical Modeling framework for paleo-environmental data
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=%2FTutorials%2F1.Introduction%2F2.Process_level_modelling.ipynb)
-
 By [Rutgers Earth System Science & Policy Lab](https://earthscipol.net/)
 
 
