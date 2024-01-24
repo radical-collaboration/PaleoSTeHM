@@ -1,23 +1,24 @@
 name: ve3PaleoSTeHM
 channels:
+  - conda-forge
   - pytorch
   - defaults
-  - conda-forge
 dependencies:
   - cartopy==0.21.0
   - matplotlib=3.4.3
-  - numpy==1.20.3
+  - numpy
   - pandas==1.3.4
-  - scipy==1.7.1
+  - scipy
   - pytorch=1.11.0
   - tqdm==4.62.3
   - seaborn==0.11.2
   - statsmodels==0.14.0
   - astropy=4.3.1
+  - openpyxl
   - jupyter==1.0.0
-  - ipywidgets==7.5.1
+  - ipywidgets
+  - ipykernel
   - pip==21.2.4
   - pip:
     - pyro-api==0.1.2
     - pyro-ppl==1.8.4
-    - nmmn==1.2.1
