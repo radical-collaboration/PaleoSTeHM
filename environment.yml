@@ -14,6 +14,7 @@ dependencies:
   - seaborn==0.11.2
   - statsmodels==0.14.0
   - astropy=4.3.1
+  - openpyxl
   - jupyter==1.0.0
   - ipywidgets
   - ipykernel
@@ -21,4 +22,3 @@ dependencies:
   - pip:
     - pyro-api==0.1.2
     - pyro-ppl==1.8.4
-    - nmmn==1.2.1

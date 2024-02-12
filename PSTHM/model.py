@@ -103,8 +103,11 @@ class GPRegression_V(GPModel):
 
         N = self.X.size(0)
         Kff = self.kernel(self.X)
-        Kff = Kff + self.noise
-        Kff.view(-1)[:: N + 1] += self.jitter
+        if self.noise.dim() <=1:
+            Kff.view(-1)[:: N + 1] += self.jitter + self.noise
+        elif self.noise.dim() ==2:
+            Kff = Kff + self.noise
+            Kff.view(-1)[:: N + 1] += self.jitter
         Lff = torch.linalg.cholesky(Kff)
 
         zero_loc = self.X.new_zeros(self.X.size(0))
@@ -128,7 +131,7 @@ class GPRegression_V(GPModel):
         self._load_pyro_samples()
 
 
-    def forward(self, Xnew, full_cov=False, noiseless=True):
+    def forward(self, Xnew, full_cov=False):
         r"""
         Computes the mean and covariance matrix (or variance) of Gaussian Process
         posterior on a test input data :math:`X_{new}`:
@@ -172,13 +175,6 @@ class GPRegression_V(GPModel):
             full_cov,
             jitter=self.jitter,
         )
-
-        if full_cov and not noiseless:
-            M = Xnew.size(0)
-            cov = cov.contiguous()
-            cov.view(-1, M * M)[:, :: M + 1] += self.noise  # add noise to the diagonal
-        if not full_cov and not noiseless:
-            cov = cov + self.noise.abs()
 
         return loc + self.mean_function(Xnew), cov
 
