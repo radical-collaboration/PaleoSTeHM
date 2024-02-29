@@ -635,7 +635,7 @@ class Polynomial(DotProduct):
 
         bias = torch.tensor(1.0) if bias is None else bias
         self.bias = PyroParam(bias, constraints.positive)
-
+        self.variance=variance
         if not isinstance(degree, int) or degree < 1:
             raise ValueError(
                 "Degree for Polynomial kernel should be a positive integer."
