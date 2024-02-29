@@ -93,7 +93,7 @@ def plot_tem_regression(data_age, data_rsl, data_age_sigma, data_rsl_sigma, mean
                             data_rsl,
                             data_age_sigma * 2,
                             data_rsl_sigma * 2,
-                            ax=ax
+                            ax=ax,CE=True
                             )
 
     ax.plot(mean_rsl_age,

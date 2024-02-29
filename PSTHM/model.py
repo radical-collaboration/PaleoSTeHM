@@ -410,6 +410,7 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
         beta_coef_list[i] = beta_coef
         if i<n_cp:
             cp_prior = dist.Uniform(cp_loc_prior[i]-gap,cp_loc_prior[i+1]+gap)
+            # cp_prior = dist.Uniform(X[:,0].min(),X[:,0].max())
             cp_loc = pyro.sample(f"cp_{i}", cp_prior)
             cp_loc_list[i] = cp_loc
     # cp_loc_list,cp_sort_index = cp_loc_list.sort()
@@ -427,10 +428,14 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
             start_age = X[:,0].min()
             start_idx = 0
             end_age = cp_loc_list[i]
+            # if end_age<=X[:,0].min():
+            #     end_age = torch.sort(X[:,0])[0][1]
             end_idx = torch.where(x_noisy<end_age)[0][-1]+1
             last_change_point = start_age
         elif i==n_cp:
             start_age = cp_loc_list[i-1]
+            if start_age>=X[:,0].max():
+                start_age = torch.sort(X[:,0])[0][-2]
             start_idx = torch.where(x_noisy>=start_age)[0][0]
             end_age = X[:,0].max()
             end_idx = X.shape[0]
