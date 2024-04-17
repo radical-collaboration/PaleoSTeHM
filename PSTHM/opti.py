@@ -6,7 +6,8 @@ from pyro.infer.autoguide import AutoMultivariateNormal, init_to_mean
 from pyro.infer import SVI, Trace_ELBO
 from tqdm.notebook import tqdm
 import torch
-from pyro.infer import MCMC, NUTS
+from pyro.infer import MCMC, NUTS,HMC
+from pyro.optim import Adam, ExponentialLR
 
 def SVI_optm(gpr,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,equal_kernels=None):
     '''
@@ -103,6 +104,7 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,e
     num_iteration: number of iterations for the optimization
     lr: learning rate for the optimization
     step_size: step size for the learning rate to decay. 
+    decay_r: decay rate for the learning rate
     A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.
     equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use
     the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [['gpr.kern0.kern0.kern0.lengthscale',’gpr.kern0.kern1.lengthscale‘]].
@@ -231,36 +233,73 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
 
     return mcmc
 
-def opti_pyro_model(model,X, y, x_sigma,y_sigma,*args,lr = 0.05,number_of_steps=500):
+def HMC_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
     '''
+    A function to run Hamiltonian Monte Carlo for GP regression model
+
+    ----------Inputs---------
+    gpr: a pyro GP regression model
+    num_samples: number of samples to draw from the posterior
+    warmup_steps: number of warmup steps for NUTS
+    target_accept_prob: target acceptance probability for NUTS
+    print_stats: whether to print the states of the model
+
+    ----------Outputs---------
+    mcmc: a pyro MCMC object
+    
+    '''
+    hmc_kernel = HMC(gpr.model,target_accept_prob=target_accept_prob)
+    mcmc = MCMC(hmc_kernel, num_samples=num_samples,warmup_steps=warmup_steps)
+    mcmc.run()
+    if print_stats:
+        for name, value in mcmc.get_samples().items():
+            if 'kernel' in name:
+                
+                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
+                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
+                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
+
+    return mcmc
+
+def opti_pyro_model(model, X, y, x_sigma, y_sigma, *args, lr=0.05, number_of_steps=500, step_size=100, decay_r=0.1):
+    """
     A function to optimize the pyro model
 
-    ------------Inputs--------------
-    model: PaleoSTeHM model, currently supports: change_point_model, ensemble_GIA_model, linear_model
-    X: 2D torch tensor with shape (n_samples,n_features)
-    y: 1D torch tensor with shape (n_samples)
-    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
-    *args: prior distributions for the model
-    lr: learning rate
-    number_of_steps: number of steps to train the model
+    Parameters:
+    model: function, the model function to be optimized
+    X: torch.Tensor, the input features
+    y: torch.Tensor, the target variable
+    x_sigma: float, standard deviation of the input features' error
+    y_sigma: float, standard deviation of the target variable's error
+    *args: additional arguments for the model
+    lr: float, initial learning rate
+    number_of_steps: int, total number of optimization steps
+    step_size: int, the number of steps after which the learning rate will decay
+    decay_r: float, the decay rate by which the learning rate will be multiplied
 
-    ------------Outputs--------------
-    guide: the optimized model
-    losses: the loss of the model during training
-    '''
-
-    #-------Construct model---------
-    model = model
+    Returns:
+    guide: the optimized guide corresponding to the model
+    losses: list of loss values during training
+    """
+    # Initialize the guide function
     guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
 
-    #-------Train the model---------
+    # Setup the optimizer with initial learning rate
+    adam = Adam({"lr": lr})
+    scheduler = ExponentialLR({'optimizer': adam, 'optim_args': {'lr': step_size}, 'gamma': decay_r})
+
+    # Setup the SVI object for stochastic variational inference
+    svi = SVI(model, guide, adam, loss=Trace_ELBO())
+
+    # Training loop
     pyro.clear_param_store()
     losses = []
-    adam = pyro.optim.Adam({"lr":lr})
-    svi = SVI(model, guide, adam, loss=Trace_ELBO())
-    for j in tqdm(range(number_of_steps)):
-        # calculate the loss and take a gradient step
-        loss = svi.step(X, y, x_sigma,y_sigma,*args)
-        losses.append(loss/len(X))
-    return guide,losses
+    for step in tqdm(range(number_of_steps)):
+        # Perform a step of SVI
+        loss = svi.step(X, y, x_sigma, y_sigma, *args)
+        losses.append(loss / len(X))
+        # Update the learning rate
+        if (step + 1) % step_size == 0:
+            scheduler.step()
+
+    return guide, losses

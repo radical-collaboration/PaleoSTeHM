@@ -142,29 +142,43 @@ def cal_wMSE(y,yhat,y_sigma):
     return wMSE
     
 
-def get_change_point_posterior(guide,sample_number):
-    num_cp = int(list(guide().keys())[-1][list(guide().keys())[-1].index('_')+1:])
-    output_dict = dict()
-    output_dict['b'] = np.zeros(sample_number)
-    output_dict['a'] = np.zeros([sample_number,num_cp+1])
-    output_dict['cp'] = np.zeros([sample_number,num_cp])
-    test_cp = []
-    for i in range(num_cp):
-        test_cp.append(guide.median()['cp_'+str(i)].detach().numpy())
-    cp_index = np.argsort(test_cp)
+def get_change_point_posterior(guide, sample_number):
+    '''
+    Function to sample from the guide and return posterior samples for change point model
     
+    ----------Inputs----------
+    guide: pyro model guide
+    sample_number: int, number of samples to draw from the guide
+    
+    '''
+    # Initialize dictionary to store posterior samples
+    output_dict = dict()
+    num_cp = int(list(guide().keys())[-2][list(guide().keys())[-2].index('_')+1:])
+    # Extract median values to determine the number of change points and setup output structure
+    median_values = guide.median()
+    a_keys = ['a_'+str(i) for i in range(num_cp+1)]
+    cp_keys = ['cp_'+str(i) for i in range(num_cp)]
+    num_cp = len(cp_keys)
+    num_as = len(a_keys)
+
+    # Initialize arrays for posterior samples
+    output_dict['b'] = np.zeros(sample_number)
+    output_dict['a'] = np.zeros((sample_number, num_as))
+    output_dict['cp'] = np.zeros((sample_number, num_cp))
+    
+    # Get the sorted index for change points to maintain order
+    cp_values = [median_values[cp_key].item() for cp_key in cp_keys]
+    cp_index = np.argsort(cp_values)
+
+    # Sample from the guide and store results
     for i in range(sample_number):
-        store_beta = []
-        store_cp = []
         posterior_samples = guide()
-        for i2 in range(num_cp+1):
-            store_beta.append(posterior_samples['a_'+str(i2)].detach().numpy())
-            if i2 < num_cp:
-                store_cp.append(posterior_samples['cp_'+str(i2)].detach().numpy())
         output_dict['b'][i] = posterior_samples['b'].detach().numpy()
-        output_dict['a'][i] = np.array(store_beta)
-        output_dict['cp'][i] = np.array(store_cp)[cp_index]
+        output_dict['a'][i] = np.array([posterior_samples[a_keys[j]].detach().numpy() for j in range(num_as)])
+        output_dict['cp'][i] = np.array([posterior_samples[cp_keys[j]].detach().numpy() for j in cp_index])
+    
     return output_dict
+
 
 def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
     '''
@@ -179,10 +193,13 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
     b: float, the intercept coefficient
     '''
     last_intercept = b
+    cp_loc_prior = torch.linspace(data_X[:,0].min(),data_X[:,0].max(),n_cp+3)[1:-1]
+    gap = cp_loc_prior[1]-cp_loc_prior[0]
+    initial_age, ending_age = data_X[:,0].min()-gap,data_X[:,0].max()+gap
     mean = torch.zeros(new_X.shape[0])
     for i in range(n_cp+1):
         if i==0:
-            start_age = data_X[:,0].min()
+            start_age = initial_age
             start_idx = 0
             end_age = cp_loc_list[i]
             end_idx = torch.where(new_X<end_age)[0][-1]+1
@@ -190,7 +207,7 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
         elif i==n_cp:
             start_age = cp_loc_list[i-1]
             start_idx = torch.where(new_X>=start_age)[0][0]
-            end_age = new_X[:,0].max()
+            end_age = ending_age
             end_idx = new_X.shape[0]
         else:
             start_age = cp_loc_list[i-1]
@@ -201,6 +218,7 @@ def change_point_forward(n_cp,cp_loc_list,new_X,data_X,beta_coef_list,b):
         mean[start_idx:end_idx] = beta_coef_list[i] * (new_X[start_idx:end_idx:,0]-last_change_point) + last_intercept
         last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
         last_change_point = end_age
+
     return mean
 
 
