@@ -44,7 +44,7 @@ jupyter-lab
   - **[Incorporate temporal uncertainty in Gaussian Process](Tutorials/2.Temporal_GP/6.Temporal_uncer.ipynb)**  - This tutorial introduce two commonly-used methods for Gaussian Process: noisy-input Gaussian Process and errors-in-variable Gaussian Process. 
   - **[Holocene sea-level analysis in New Jersey and Northern North Carolina](Tutorials/2.Temporal_GP/7.NJ_NNC_RSL.ipynb)**  - This tutorial will use the contents covered above in order to replicate Gaussian Process modelling results in New Jersey and Northern North Carolina as in [Ashe et al., 2019](https://www.sciencedirect.com/science/article/abs/pii/S0277379118302130).
 ### Spatio-temporal Gaussian Process 
- - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.STGP_background.ipynb)** - Background of building a Sptio-temporal Gaussian Process model.
+ - **[Spatio-temporal Gaussian Process Background ](Tutorials/3.ST_GP/8.STGP_background.ipynb)** - Background of building a Spatio-temporal Gaussian Process model.
  - **[Spatio-temporal Gaussian Process with multiple kernels](Tutorials/3.ST_GP/9.STGP_kernels.ipynb)** - Spatio-temporal Gaussian Process with multiple kernels with instructions on kernel decomposition. 
  - **[Spatio-temporal Gassusian Process with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models.
 
