@@ -390,54 +390,51 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
     X: 2D torch tensor with shape (n_samples,n_features)
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model
     n_cp: int, number of change-points
     intercept_prior: pyro distribution for the intercept coefficient
     coefficient_prior: pyro distribution for the slope coefficient
 
     '''
     # Define our intercept prior
-    # intercept_prior = dist.Uniform(-5., 5.)
     b = pyro.sample("b", intercept_prior)
     beta_coef_list = torch.zeros(n_cp+1)
     cp_loc_list = torch.zeros(n_cp)
     #Define our coefficient prior
-    cp_loc_prior = torch.linspace(X[:,0].min(),X[:,0].max(),n_cp+1)
+    cp_loc_prior = torch.linspace(X[:,0].min(),X[:,0].max(),n_cp+3)[1:-1]
     gap = cp_loc_prior[1]-cp_loc_prior[0]
+    initial_age, ending_age = X[:,0].min()-gap,X[:,0].max()+gap
+    
     for i in range(n_cp+1):
-        # coefficient_prior = dist.Uniform(-0.01, 0.01)
         beta_coef = pyro.sample(f"a_{i}", coefficient_prior)    
         beta_coef_list[i] = beta_coef
         if i<n_cp:
             cp_prior = dist.Uniform(cp_loc_prior[i]-gap,cp_loc_prior[i+1]+gap)
-            # cp_prior = dist.Uniform(X[:,0].min(),X[:,0].max())
             cp_loc = pyro.sample(f"cp_{i}", cp_prior)
             cp_loc_list[i] = cp_loc
-    # cp_loc_list,cp_sort_index = cp_loc_list.sort()
-    # beta_coef_list = beta_coef_list[cp_sort_index]
 
-    #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
+    x_noise = pyro.sample('xerr',dist.Normal(0,x_sigma).to_event(1))
     x_noisy = X[:, 0]+x_noise
-
     mean = torch.zeros(X.shape[0])
     last_intercept = b
-   
     for i in range(n_cp+1):
         if i==0:
-            start_age = X[:,0].min()
+            start_age = initial_age
             start_idx = 0
             end_age = cp_loc_list[i]
-            # if end_age<=X[:,0].min():
-            #     end_age = torch.sort(X[:,0])[0][1]
-            end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+            try:
+                end_idx = torch.where(x_noisy<end_age)[0][-1]+1
+            except:
+                end_idx = 0
+            
             last_change_point = start_age
         elif i==n_cp:
             start_age = cp_loc_list[i-1]
-            if start_age>=X[:,0].max():
-                start_age = torch.sort(X[:,0])[0][-2]
-            start_idx = torch.where(x_noisy>=start_age)[0][0]
-            end_age = X[:,0].max()
+            try:
+                start_idx = torch.where(x_noisy>=start_age)[0][0]
+            except:
+                start_idx = len(X[:, 0])-1
+            end_age = ending_age
             end_idx = X.shape[0]
         else:
             start_age = cp_loc_list[i-1]
@@ -448,10 +445,13 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
         mean[start_idx:end_idx] = beta_coef_list[i] * (x_noisy[start_idx:end_idx]-last_change_point) + last_intercept
         last_intercept = beta_coef_list[i] * (end_age-last_change_point) + last_intercept
         last_change_point = end_age
-       
+        
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        if y_sigma.dim() <=1:
+            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        elif y_sigma.dim() ==2:
+            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
 
 def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     '''
@@ -461,7 +461,7 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     X: 2D torch tensor with shape (n_samples,n_features)
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model
 
     '''
     # Define our intercept prior
@@ -470,22 +470,25 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     weight_facor_list = pyro.sample("W",dist.Dirichlet(torch.ones(model_ensemble.shape[0])))
     # weight_facor_list[i] = weight_factor
     #generate random error for age
-    x_noise = torch.normal(0, x_sigma)
+    x_noise = pyro.sample('obs_xerr',dist.Normal(0,x_sigma).to_event(1))
     x_noisy = X[:, 0]+x_noise
     #interpolate GIA model
     mean = torch.zeros(len(x_noisy))
     for i in range(model_ensemble.shape[0]):
-        GIA_model = interpolate.interp1d(model_age,model_ensemble[i])
+        GIA_model = interpolate.interp1d(model_age.detach().numpy(),model_ensemble[i].detach().numpy())
         x_noisy[x_noisy>X[:, 0].max()] = X[:, 0].max()
         x_noisy[x_noisy<X[:, 0].min()] = X[:, 0].min()
 
         #calculate mean prediction
        
-        mean += torch.tensor(GIA_model(x_noisy)) *weight_facor_list[i]
+        mean += torch.tensor(GIA_model(x_noisy.detach().numpy())) *weight_facor_list[i]
    
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        if y_sigma.dim() <=1:
+            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        elif y_sigma.dim() ==2:
+            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
    
 
 #THis model can be implemented within a class
@@ -497,7 +500,7 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     X: 2D torch tensor with shape (n_samples,n_features)
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
-    y_sigma: float, standard deviation of the error for the RSL, which is obtained from the RSL datamodel
+    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model
     intercept_prior: pyro distribution for the intercept coefficient
     coefficient_prior: pyro distribution for the slope coefficient
 
@@ -517,4 +520,8 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     mean = linear_combination + (x_noisy * beta_coef)
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
-        observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        if y_sigma.dim() <=1:
+            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        elif y_sigma.dim() ==2:
+            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
+        
