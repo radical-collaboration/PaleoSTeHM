@@ -649,3 +649,61 @@ class Polynomial(DotProduct):
         return self.variance * (
             (self.bias + self._dot_product(X, Z, diag)) ** self.degree
         )
+
+
+class Empirical(Kernel):
+    r"""
+    Implementation of an empirical kernel where the input is a physical model ensemble,
+    and the kernel is the sampling covariance matrix of the ensemble. It includes a temporal gaussian tamper function, 
+    to use it, user need to define taper length.
+
+    :param int input_dim: Dimension of input vectors.
+    :param list model_ensemble: A list of callable models that make up the ensemble.
+    :param np.ndarray weights: Optional weights for each model in the ensemble.
+    :param list active_dims: Indices of active dimensions.
+    :param int tau: temporal value for temporl gaussian taper function
+    """
+    def __init__(self, input_dim, model_ensemble=None, weights=None, active_dims=None, tau=None):
+        super().__init__(input_dim, active_dims)
+        self.ensemble = model_ensemble
+        self.weights = np.ones(len(model_ensemble)) if weights is None else weights
+        self.tau = tau
+
+    def forward(self, X, Z=None, diag=False):
+        # Collect predictions from each model in the ensemble
+        all_pred = torch.stack([torch.tensor(model(X)) for model in self.ensemble])
+
+        if Z is None:
+            Z = X
+
+        # Handle tapering
+        if self.tau is not None:
+            # Apply Gaussian taper based on the distance
+            if X.dim() == 1:
+                distance_matrix = (X[:, None] - Z[None, :])**2
+            elif X.dim()>1:
+                distance_matrix = (X[:,0][:, None] - Z[:,0][None, :])**2
+            
+            taper_matrix = torch.exp(-distance_matrix / (self.tau**2))
+        else:
+            taper_matrix = 1
+        if not diag:
+            if X is Z:
+                cov_matrix = np.cov(all_pred.detach().numpy(), aweights=self.weights, rowvar=False)
+            else:
+                all_pred_Z = torch.stack([torch.tensor(model(Z)) for model in self.ensemble])
+                cov_matrix = np.cov(np.hstack([all_pred.detach().numpy(), all_pred_Z.detach().numpy()]),
+                                    aweights=self.weights, rowvar=False)
+                n = all_pred.shape[1]
+                m = all_pred_Z.shape[1]
+                cov_matrix = cov_matrix[:n, n:n+m]
+
+            # Apply tapering
+            cov_matrix = torch.tensor(cov_matrix) * taper_matrix
+            return cov_matrix
+        else:
+            cov_matrix = np.cov(all_pred.detach().numpy(), aweights=self.weights, rowvar=False)
+            cov_matrix = torch.tensor(cov_matrix).diag()
+
+            # Apply tapering if needed
+            return cov_matrix * taper_matrix.diag() if self.tau is not None else cov_matrix
