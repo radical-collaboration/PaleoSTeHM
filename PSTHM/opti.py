@@ -254,10 +254,10 @@ def HMC_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,prin
     if print_stats:
         for name, value in mcmc.get_samples().items():
             if 'kernel' in name:
-                
-                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
-                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
-                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
+                if value.dim()==1:
+                    print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
+                    print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
+                    print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
 
     return mcmc
 
@@ -303,3 +303,31 @@ def opti_pyro_model(model, X, y, x_sigma, y_sigma, *args, lr=0.05, number_of_ste
             scheduler.step()
 
     return guide, losses
+
+def mcmc_pyro_model(model,model_paras,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+    '''
+    A function to run MCMC model in Pyro
+
+    ------------Inputs--------------
+    model: pyro model
+    model_paras: dictionary, the parameters of the model
+    num_samples: int, number of samples to draw
+    warmup_steps: int, number of warmup steps
+    target_accept_prob: float, target acceptance probability
+    print_stats: bool, whether to print the statistics of the model
+
+    ------------Outputs--------------
+    hmc_samples: dictionary, the samples of the model
+    '''
+    
+    nuts_kernel = NUTS(model, target_accept_prob=target_accept_prob)
+    mcmc = MCMC(nuts_kernel, num_samples=num_samples, warmup_steps=warmup_steps)
+    mcmc.run(*model_paras)
+    
+    if print_stats:
+        for name, value in mcmc.get_samples().items():
+            if value.dim()==1:
+                print('-----{}: {:4.2f} +/ {:4.2f} (2sd)-----'.format(name,value.mean(),2*value.std()))
+                print('Gelman-Rubin statistic for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['r_hat'].item()))
+                print('Effective sample size for {}: {:4.2f}'.format(name,mcmc.diagnostics()[name]['n_eff'].item()))
+    return mcmc

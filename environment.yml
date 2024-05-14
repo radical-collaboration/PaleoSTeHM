@@ -17,6 +17,7 @@ dependencies:
   - openpyxl
   - jupyter==1.0.0
   - ipywidgets
+  - netcdf4
   - ipykernel
   - netcdf4==1.6.5
   - nmmn

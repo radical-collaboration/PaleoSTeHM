@@ -449,9 +449,9 @@ def change_point_model(X, y,x_sigma,y_sigma,n_cp,intercept_prior,coefficient_pri
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
         if y_sigma.dim() <=1:
-            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+            pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
         elif y_sigma.dim() ==2:
-            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
+            pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
 
 def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     '''
@@ -486,13 +486,12 @@ def ensemble_GIA_model(X, y,x_sigma,y_sigma,model_ensemble,model_age):
     with pyro.plate("data", y.shape[0]):        
         # Condition the expected mean on the observed target y
         if y_sigma.dim() <=1:
-            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+            pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
         elif y_sigma.dim() ==2:
-            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
+            pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
    
 
-#THis model can be implemented within a class
-def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
+def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior,whitenoise_prior =None):
     '''
     A function to define a linear model in pyro
 
@@ -501,6 +500,50 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
     y: 1D torch tensor with shape (n_samples)
     x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
     y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model
+    intercept_prior: pyro distribution for the intercept coefficient
+    coefficient_prior: pyro distribution for the slope coefficient
+    whitenoise_prior: pyro distribution for the white noise
+
+    '''
+    # Define our intercept prior
+   
+    linear_combination = pyro.sample("b", intercept_prior)
+    #Define our coefficient prior
+   
+    beta_coef = pyro.sample("a", coefficient_prior)
+    #generate random error for age
+    N = X.shape[0]
+    x_noise = pyro.sample('obs_xerr',dist.Normal(torch.zeros(N),x_sigma).to_event(1))
+    x_noisy = X[:, 0]+x_noise
+   
+    #calculate mean prediction
+    mean = linear_combination + (x_noisy * beta_coef)
+    if whitenoise_prior == None:
+        whitenoise = 0
+    else:
+        whitenoise = pyro.sample('whitenoise',whitenoise_prior)
+    
+    with pyro.plate("data", X.shape[0]):        
+        # Condition the expected mean on the observed target y
+        y_sigma = (y_sigma**2+whitenoise**2)**0.5
+        if y_sigma.dim() <=1:
+            pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
+        elif y_sigma.dim() ==2:
+            pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
+
+
+
+
+
+def linear_model_uniform(X, y,x_sigma,y_range,intercept_prior,coefficient_prior,whitenoise_prior):
+    '''
+    A function to define a linear model with uniform likelihood in pyro
+
+    ------------Inputs--------------
+    X: 2D torch tensor with shape (n_samples,n_features)
+    y: 1D torch tensor with shape (n_samples), note y is the middle point of the paleo RSL range
+    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model
+    y_range: float, upper and lower bound of the error for the paleo RSL, which is defined by different types of coral
     intercept_prior: pyro distribution for the intercept coefficient
     coefficient_prior: pyro distribution for the slope coefficient
 
@@ -518,10 +561,10 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior):
    
     #calculate mean prediction
     mean = linear_combination + (x_noisy * beta_coef)
-    with pyro.plate("data", y.shape[0]):        
+    whitenoise = pyro.sample("whitenoise",whitenoise_prior)
+
+    with pyro.plate("data", X.shape[0]):        
         # Condition the expected mean on the observed target y
-        if y_sigma.dim() <=1:
-            observation = pyro.sample("obs", dist.Normal(mean, y_sigma), obs=y)
-        elif y_sigma.dim() ==2:
-            observation = pyro.sample("obs", dist.MultivariateNormal(mean, y_sigma), obs=y)
-        
+        y_up = mean + y_range +whitenoise
+        y_down = mean - y_range - whitenoise
+        pyro.sample("obs", dist.Uniform(y_down,y_up), obs=y)
