@@ -3,7 +3,7 @@ matplotlib
 numpy 
 pandas
 scipy 
-torch==1.11 
+torch==2.3.0
 tqdm
 seaborn
 statsmodels
