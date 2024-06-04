@@ -651,9 +651,9 @@ class Polynomial(DotProduct):
         )
 
 
-class Empirical(Kernel):
+class Sampling(Kernel):
     r"""
-    Implementation of an empirical kernel where the input is a physical model ensemble,
+    Implementation of a sampling kernel where the input is a physical model ensemble,
     and the kernel is the sampling covariance matrix of the ensemble. It includes a temporal gaussian tamper function, 
     to use it, user need to define taper length.
 
