@@ -35,6 +35,8 @@ jupyter-lab
 
 ## Google Colab Install
 
+The following are instructions on how to run PaleoSTeHM tutorials through Google Colab. One must have a google drive account to use PaleoSTeHM in this configuration.
+
 1. Navigate to Google Colab (https://colab.research.google.com/)
 
 2. Select "+ New Notebook" when prompted
