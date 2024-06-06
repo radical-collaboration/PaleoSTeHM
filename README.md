@@ -35,13 +35,11 @@ jupyter-lab
 
 ## Google Colab Install
 
-The following are instructions on how to run PaleoSTeHM tutorials through Google Colab. One must have a google drive account to use PaleoSTeHM in this configuration.
+The following are instructions on how to run PaleoSTeHM tutorials through Google Colab (https://colab.research.google.com/). One must have a Google account and access to Google Drive to use PaleoSTeHM in this configuration.
 
-1. Navigate to Google Colab (https://colab.research.google.com/)
+1. Navigate to Google Colab and select "+ New Notebook" when prompted.
 
-2. Select "+ New Notebook" when prompted
-
-3. In the new notebook copy and paste the following into cell
+2. In the new notebook copy and paste the following into cell.
 
 ```
 from google.colab import drive
@@ -50,7 +48,7 @@ drive.mount('/content/drive')
 !git clone https://github.com/radical-collaboration/PaleoSTeHM.git
 ```
 
-4. Open Google Drive and navigate to the newly created PaleoSTeHM repo. Go to the tutorial you would like to run (i.e. /PaleoSTeHM/Tutorials/1.introduction/introduction.ipynb) right click and select "run from Google Colab"
+3. Open Google Drive and navigate to the newly created PaleoSTeHM repo. Go to the tutorial you would like to run (i.e. /PaleoSTeHM/Tutorials/1.introduction/introduction.ipynb) right click and select "run from Google Colab".
 
 
 
