@@ -1,0 +1,15 @@
+=====
+Title
+=====
+
+A function to load rsl data from a csv file, this csv 
+file should be presented in the same format as NJ_CC.csv in data folder
+
+---------Inputs---------
+file: str, the path to the csv file
+
+---------Outputs---------
+X: torch.tensor, the age of rsl data
+y: torch.tensor, the rsl data
+y_sigma: torch.tensor, one sigma uncertainty of rsl data
+x_sigma: torch.tensor, one uncertainty of age data
