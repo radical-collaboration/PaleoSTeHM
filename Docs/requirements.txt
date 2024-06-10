@@ -1,0 +1,17 @@
+cartopy
+matplotlib==3.4.3
+numpy
+pandas==1.3.4
+scipy
+tqdm==4.62.3
+seaborn==0.11.2
+statsmodels==0.14.0
+astropy
+openpyxl
+jupyter==1.0.0
+ipywidgets
+netcdf4
+ipykernel
+netcdf4==1.6.5
+nmmn
+pip==21.2.4
