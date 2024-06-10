@@ -31,9 +31,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # Display modules in navigation menu
 toc_object_entries_show_parents = ['all']
-html_sidebars = {
-    '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html']
-}
+#html_sidebars = {
+#    '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html']
+#}
 
 
 
@@ -41,4 +41,4 @@ html_sidebars = {
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'alabaster'
-html_static_path = ['_static']
+#html_static_path = ['_static']
