@@ -57,12 +57,3 @@ PSTHM.post module
     :members:
     :undoc-members:
     :show-inheritance:
-
-
-Module contents
----------------
-
-.. automodule:: PSTHM
-    :members:
-    :undoc-members:
-    :show-inheritance:
