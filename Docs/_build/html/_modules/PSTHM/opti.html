@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSTHM.opti &#8212; PaleoSTeHM 1.0.0-beta documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=3fd7a760"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PSTHM.opti</h1><div class="highlight"><pre>
+<span></span><span class="c1">#----------------------Define Functions---------------------------</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">pyro</span>
+<span class="kn">from</span> <span class="nn">pyro.infer.autoguide</span> <span class="kn">import</span> <span class="n">AutoMultivariateNormal</span><span class="p">,</span> <span class="n">init_to_mean</span>
+<span class="kn">from</span> <span class="nn">pyro.infer</span> <span class="kn">import</span> <span class="n">SVI</span><span class="p">,</span> <span class="n">Trace_ELBO</span>
+<span class="kn">from</span> <span class="nn">tqdm.notebook</span> <span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">pyro.infer</span> <span class="kn">import</span> <span class="n">MCMC</span><span class="p">,</span> <span class="n">NUTS</span><span class="p">,</span><span class="n">HMC</span>
+<span class="kn">from</span> <span class="nn">pyro.optim</span> <span class="kn">import</span> <span class="n">Adam</span><span class="p">,</span> <span class="n">ExponentialLR</span>
+
+<div class="viewcode-block" id="SVI_optm">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.SVI_optm">[docs]</a>
+<span class="k">def</span> <span class="nf">SVI_optm</span><span class="p">(</span><span class="n">gpr</span><span class="p">,</span><span class="n">num_iteration</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span><span class="n">lr</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span><span class="n">decay_r</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span><span class="n">step_size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">equal_kernels</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A funciton to optimize the hyperparameters of a GP model using SVI</span>
+
+<span class="sd">    ---------Inputs-----------</span>
+<span class="sd">    gpr: a GP model defined by pyro GPR regression</span>
+<span class="sd">    num_iteration: number of iterations for the optimization</span>
+<span class="sd">    lr: learning rate for the optimization</span>
+<span class="sd">    decay_r: decay rate for the learning rate</span>
+<span class="sd">    step_size: step size for the learning rate to decay. </span>
+<span class="sd">    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.</span>
+<span class="sd">    equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use</span>
+<span class="sd">    the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [[&#39;gpr.kern0.kern0.kern0.lengthscale&#39;,’gpr.kern0.kern1.lengthscale‘]].</span>
+<span class="sd">    This also supports multiple kernel pairs.</span>
+
+<span class="sd">    ---------Outputs-----------</span>
+<span class="sd">    gpr: a GP model with optimized hyperparameters</span>
+<span class="sd">    track: a dictionary of loss</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="c1">#clear the param store</span>
+    <span class="n">pyro</span><span class="o">.</span><span class="n">clear_param_store</span><span class="p">()</span>
+    <span class="c1">#convert the model to double precision</span>
+    <span class="n">gpr</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+    <span class="c1">#define the optimiser</span>
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">)</span>
+    <span class="n">scheduler</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">StepLR</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="n">step_size</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">decay_r</span><span class="p">)</span>
+
+    <span class="c1">#define the loss function</span>
+    <span class="n">loss_fn</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">infer</span><span class="o">.</span><span class="n">Trace_ELBO</span><span class="p">()</span><span class="o">.</span><span class="n">differentiable_loss</span>
+    <span class="c1">#do the optimisation</span>
+    <span class="n">track_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_iteration</span><span class="p">)):</span>
+        
+        <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">gpr</span><span class="o">.</span><span class="n">guide</span><span class="p">)</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">gpr</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+        <span class="n">tem_para</span> <span class="o">=</span>  <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">equal_kernels</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span> 
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">kernels</span> <span class="ow">in</span> <span class="n">equal_kernels</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">pass</span>
+                <span class="k">elif</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39; not in pyro storage&#39;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">pass</span>
+                <span class="k">elif</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39; not in pyro storage&#39;</span><span class="p">)</span>
+                <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+
+        <span class="k">for</span> <span class="n">i2</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">i2</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">tem_para</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i2</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i3</span> <span class="ow">in</span> <span class="n">i2</span><span class="p">:</span>
+                    <span class="n">tem_para</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i3</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        <span class="n">track_list</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">loss</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span><span class="o">*</span><span class="n">tem_para</span><span class="p">])</span>
+    
+    <span class="c1">#generate columns names for the track list</span>
+    <span class="n">col_name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;loss&#39;</span> <span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">())</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">col_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_map&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">numel</span><span class="p">()):</span>
+                <span class="n">col_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_map&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i2</span><span class="p">))</span>
+    <span class="c1">#convert the track list to a dataframe</span>
+    <span class="n">track_list</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">track_list</span><span class="p">,</span><span class="n">columns</span><span class="o">=</span><span class="n">col_name</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">gpr</span><span class="p">,</span><span class="n">track_list</span></div>
+
+
+
+<div class="viewcode-block" id="SVI_NI_optm">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.SVI_NI_optm">[docs]</a>
+<span class="k">def</span> <span class="nf">SVI_NI_optm</span><span class="p">(</span><span class="n">gpr</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">num_iteration</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span><span class="n">lr</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span><span class="n">decay_r</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span><span class="n">step_size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">equal_kernels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">gpu</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A funciton to optimize the hyperparameters of a GP model using SVI</span>
+
+<span class="sd">    ---------Inputs-----------</span>
+<span class="sd">    gpr: a GP model defined by pyro GPR regression</span>
+<span class="sd">    x_sigma: one sigma uncertainty for input data</span>
+<span class="sd">    num_iteration: number of iterations for the optimization</span>
+<span class="sd">    lr: learning rate for the optimization</span>
+<span class="sd">    step_size: step size for the learning rate to decay. </span>
+<span class="sd">    decay_r: decay rate for the learning rate</span>
+<span class="sd">    A step size of 100 with a decay rate of 0.9 means that the learning rate will be decrease 10% for every 100 steps.</span>
+<span class="sd">    equal_kernels: a list of list of kernels that will be set to have the same hyperparameter. For example, if we want to use</span>
+<span class="sd">    the same lengthscale for global kernel and regional non-linear kernel, you can set  equal_kernels = [[&#39;gpr.kern0.kern0.kern0.lengthscale&#39;,’gpr.kern0.kern1.lengthscale‘]].</span>
+<span class="sd">    This also supports multiple kernel pairs.</span>
+<span class="sd">    </span>
+<span class="sd">    gpu: whether use gpu to accelerate training </span>
+<span class="sd">    ---------Outputs-----------</span>
+<span class="sd">    gpr: a GP model with optimized hyperparameters</span>
+<span class="sd">    track: a dictionary of loss</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="c1">#clear the param store</span>
+    <span class="n">pyro</span><span class="o">.</span><span class="n">clear_param_store</span><span class="p">()</span>
+    <span class="c1">#convert the model to double precision</span>
+    <span class="n">gpr</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+    <span class="c1">#define the optimiser</span>
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">)</span>
+    <span class="c1">#define the learning rate scheduler</span>
+    <span class="n">scheduler</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">StepLR</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="n">step_size</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">decay_r</span><span class="p">)</span>
+    <span class="c1">#define the loss function</span>
+    <span class="n">loss_fn</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">infer</span><span class="o">.</span><span class="n">Trace_ELBO</span><span class="p">()</span><span class="o">.</span><span class="n">differentiable_loss</span>
+    <span class="c1">#do the optimisation</span>
+    <span class="n">track_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">y_sigma</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">**</span><span class="mf">0.5</span>
+    <span class="k">elif</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+        <span class="n">y_sigma</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mf">0.5</span>
+
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_iteration</span><span class="p">)):</span>
+        <span class="c1">#update vertical noise based on gradient</span>
+        <span class="k">if</span> <span class="n">gpu</span><span class="p">:</span>
+            <span class="n">x_test</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span><span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x_test</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span><span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">y_mean</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">gpr</span><span class="p">(</span><span class="n">x_test</span><span class="o">.</span><span class="n">double</span><span class="p">(),</span> <span class="n">full_cov</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">y_mean</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span><span class="n">retain_graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gpu</span><span class="p">:</span>
+            <span class="n">y_rate</span> <span class="o">=</span> <span class="n">x_test</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">y_rate</span> <span class="o">=</span> <span class="n">x_test</span><span class="o">.</span><span class="n">grad</span>
+        <span class="k">if</span> <span class="n">y_rate</span><span class="o">.</span><span class="n">ndim</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">y_rate</span> <span class="o">=</span> <span class="n">y_rate</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">new_sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">y_rate</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">x_sigma</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">+</span><span class="n">y_sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">new_sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">new_sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            
+        <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">gpr</span><span class="o">.</span><span class="n">guide</span><span class="p">)</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">gpr</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+        <span class="n">tem_para</span> <span class="o">=</span>  <span class="p">[]</span>
+        
+        <span class="k">if</span> <span class="n">equal_kernels</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span> 
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">kernels</span> <span class="ow">in</span> <span class="n">equal_kernels</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">pass</span>
+                <span class="k">elif</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39; not in pyro storage&#39;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="k">pass</span>
+                <span class="k">elif</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;_map&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39; not in pyro storage&#39;</span><span class="p">)</span>
+                <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">kernels</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">kernels</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        
+        <span class="k">for</span> <span class="n">i2</span> <span class="ow">in</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">i2</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">tem_para</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i2</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i3</span> <span class="ow">in</span> <span class="n">i2</span><span class="p">:</span>
+                    <span class="n">tem_para</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i3</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        
+        <span class="n">track_list</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">loss</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span><span class="o">*</span><span class="n">tem_para</span><span class="p">])</span>
+    
+    <span class="c1">#generate columns names for the track list</span>
+    <span class="n">col_name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;loss&#39;</span> <span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">())</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">col_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_map&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pyro</span><span class="o">.</span><span class="n">get_param_store</span><span class="p">()[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">numel</span><span class="p">()):</span>
+                <span class="n">col_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_map&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i2</span><span class="p">))</span>
+    <span class="c1">#convert the track list to a dataframe</span>
+    <span class="n">track_list</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">track_list</span><span class="p">,</span><span class="n">columns</span><span class="o">=</span><span class="n">col_name</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">gpr</span><span class="p">,</span><span class="n">track_list</span></div>
+
+
+
+<div class="viewcode-block" id="NUTS_mcmc">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.NUTS_mcmc">[docs]</a>
+<span class="k">def</span> <span class="nf">NUTS_mcmc</span><span class="p">(</span><span class="n">gpr</span><span class="p">,</span><span class="n">num_samples</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span><span class="n">warmup_steps</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span><span class="n">target_accept_prob</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span><span class="n">print_stats</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to run NUTS MCMC for GP regression model</span>
+
+<span class="sd">    ----------Inputs---------</span>
+<span class="sd">    gpr: a pyro GP regression model</span>
+<span class="sd">    num_samples: number of samples to draw from the posterior</span>
+<span class="sd">    warmup_steps: number of warmup steps for NUTS</span>
+<span class="sd">    target_accept_prob: target acceptance probability for NUTS</span>
+<span class="sd">    print_stats: whether to print the states of the model</span>
+
+<span class="sd">    ----------Outputs---------</span>
+<span class="sd">    mcmc: a pyro MCMC object</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">hmc_kernel</span> <span class="o">=</span> <span class="n">NUTS</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">model</span><span class="p">,</span><span class="n">target_accept_prob</span><span class="o">=</span><span class="n">target_accept_prob</span><span class="p">)</span>
+    <span class="n">mcmc</span> <span class="o">=</span> <span class="n">MCMC</span><span class="p">(</span><span class="n">hmc_kernel</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span><span class="n">warmup_steps</span><span class="o">=</span><span class="n">warmup_steps</span><span class="p">)</span>
+    <span class="n">mcmc</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_stats</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">mcmc</span><span class="o">.</span><span class="n">get_samples</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s1">&#39;kernel&#39;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-----</span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1"> +/ </span><span class="si">{:4.2f}</span><span class="s1"> (2sd)-----&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">value</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span><span class="mi">2</span><span class="o">*</span><span class="n">value</span><span class="o">.</span><span class="n">std</span><span class="p">()))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Gelman-Rubin statistic for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;r_hat&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Effective sample size for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;n_eff&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+
+    <span class="k">return</span> <span class="n">mcmc</span></div>
+
+
+<div class="viewcode-block" id="HMC_mcmc">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.HMC_mcmc">[docs]</a>
+<span class="k">def</span> <span class="nf">HMC_mcmc</span><span class="p">(</span><span class="n">gpr</span><span class="p">,</span><span class="n">num_samples</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span><span class="n">warmup_steps</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span><span class="n">target_accept_prob</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span><span class="n">print_stats</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to run Hamiltonian Monte Carlo for GP regression model</span>
+
+<span class="sd">    ----------Inputs---------</span>
+<span class="sd">    gpr: a pyro GP regression model</span>
+<span class="sd">    num_samples: number of samples to draw from the posterior</span>
+<span class="sd">    warmup_steps: number of warmup steps for NUTS</span>
+<span class="sd">    target_accept_prob: target acceptance probability for NUTS</span>
+<span class="sd">    print_stats: whether to print the states of the model</span>
+
+<span class="sd">    ----------Outputs---------</span>
+<span class="sd">    mcmc: a pyro MCMC object</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">hmc_kernel</span> <span class="o">=</span> <span class="n">HMC</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">model</span><span class="p">,</span><span class="n">target_accept_prob</span><span class="o">=</span><span class="n">target_accept_prob</span><span class="p">)</span>
+    <span class="n">mcmc</span> <span class="o">=</span> <span class="n">MCMC</span><span class="p">(</span><span class="n">hmc_kernel</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span><span class="n">warmup_steps</span><span class="o">=</span><span class="n">warmup_steps</span><span class="p">)</span>
+    <span class="n">mcmc</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_stats</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">mcmc</span><span class="o">.</span><span class="n">get_samples</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s1">&#39;kernel&#39;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-----</span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1"> +/ </span><span class="si">{:4.2f}</span><span class="s1"> (2sd)-----&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">value</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span><span class="mi">2</span><span class="o">*</span><span class="n">value</span><span class="o">.</span><span class="n">std</span><span class="p">()))</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Gelman-Rubin statistic for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;r_hat&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Effective sample size for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;n_eff&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+
+    <span class="k">return</span> <span class="n">mcmc</span></div>
+
+
+<div class="viewcode-block" id="opti_pyro_model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.opti_pyro_model">[docs]</a>
+<span class="k">def</span> <span class="nf">opti_pyro_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_sigma</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">number_of_steps</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">decay_r</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A function to optimize the pyro model</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    model: function, the model function to be optimized</span>
+<span class="sd">    X: torch.Tensor, the input features</span>
+<span class="sd">    y: torch.Tensor, the target variable</span>
+<span class="sd">    x_sigma: float, standard deviation of the input features&#39; error</span>
+<span class="sd">    y_sigma: float, standard deviation of the target variable&#39;s error</span>
+<span class="sd">    *args: additional arguments for the model</span>
+<span class="sd">    lr: float, initial learning rate</span>
+<span class="sd">    number_of_steps: int, total number of optimization steps</span>
+<span class="sd">    step_size: int, the number of steps after which the learning rate will decay</span>
+<span class="sd">    decay_r: float, the decay rate by which the learning rate will be multiplied</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    guide: the optimized guide corresponding to the model</span>
+<span class="sd">    losses: list of loss values during training</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Initialize the guide function</span>
+    <span class="n">guide</span> <span class="o">=</span> <span class="n">AutoMultivariateNormal</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">init_loc_fn</span><span class="o">=</span><span class="n">init_to_mean</span><span class="p">)</span>
+
+    <span class="c1"># Setup the optimizer with initial learning rate</span>
+    <span class="n">adam</span> <span class="o">=</span> <span class="n">Adam</span><span class="p">({</span><span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">lr</span><span class="p">})</span>
+    <span class="n">scheduler</span> <span class="o">=</span> <span class="n">ExponentialLR</span><span class="p">({</span><span class="s1">&#39;optimizer&#39;</span><span class="p">:</span> <span class="n">adam</span><span class="p">,</span> <span class="s1">&#39;optim_args&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;lr&#39;</span><span class="p">:</span> <span class="n">step_size</span><span class="p">},</span> <span class="s1">&#39;gamma&#39;</span><span class="p">:</span> <span class="n">decay_r</span><span class="p">})</span>
+
+    <span class="c1"># Setup the SVI object for stochastic variational inference</span>
+    <span class="n">svi</span> <span class="o">=</span> <span class="n">SVI</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">guide</span><span class="p">,</span> <span class="n">adam</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="n">Trace_ELBO</span><span class="p">())</span>
+
+    <span class="c1"># Training loop</span>
+    <span class="n">pyro</span><span class="o">.</span><span class="n">clear_param_store</span><span class="p">()</span>
+    <span class="n">losses</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">number_of_steps</span><span class="p">)):</span>
+        <span class="c1"># Perform a step of SVI</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">svi</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_sigma</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">losses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loss</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">))</span>
+        <span class="c1"># Update the learning rate</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">step_size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">guide</span><span class="p">,</span> <span class="n">losses</span></div>
+
+
+<div class="viewcode-block" id="mcmc_pyro_model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.opti.mcmc_pyro_model">[docs]</a>
+<span class="k">def</span> <span class="nf">mcmc_pyro_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span><span class="n">model_paras</span><span class="p">,</span><span class="n">num_samples</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span><span class="n">warmup_steps</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span><span class="n">target_accept_prob</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span><span class="n">print_stats</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to run MCMC model in Pyro</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    model: pyro model</span>
+<span class="sd">    model_paras: dictionary, the parameters of the model</span>
+<span class="sd">    num_samples: int, number of samples to draw</span>
+<span class="sd">    warmup_steps: int, number of warmup steps</span>
+<span class="sd">    target_accept_prob: float, target acceptance probability</span>
+<span class="sd">    print_stats: bool, whether to print the statistics of the model</span>
+
+<span class="sd">    ------------Outputs--------------</span>
+<span class="sd">    hmc_samples: dictionary, the samples of the model</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="n">nuts_kernel</span> <span class="o">=</span> <span class="n">NUTS</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">target_accept_prob</span><span class="o">=</span><span class="n">target_accept_prob</span><span class="p">)</span>
+    <span class="n">mcmc</span> <span class="o">=</span> <span class="n">MCMC</span><span class="p">(</span><span class="n">nuts_kernel</span><span class="p">,</span> <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span> <span class="n">warmup_steps</span><span class="o">=</span><span class="n">warmup_steps</span><span class="p">)</span>
+    <span class="n">mcmc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="o">*</span><span class="n">model_paras</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">print_stats</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">mcmc</span><span class="o">.</span><span class="n">get_samples</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;-----</span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1"> +/ </span><span class="si">{:4.2f}</span><span class="s1"> (2sd)-----&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">value</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span><span class="mi">2</span><span class="o">*</span><span class="n">value</span><span class="o">.</span><span class="n">std</span><span class="p">()))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Gelman-Rubin statistic for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;r_hat&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Effective sample size for </span><span class="si">{}</span><span class="s1">: </span><span class="si">{:4.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="n">mcmc</span><span class="o">.</span><span class="n">diagnostics</span><span class="p">()[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;n_eff&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">mcmc</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apidoc.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

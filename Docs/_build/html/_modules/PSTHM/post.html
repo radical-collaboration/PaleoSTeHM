@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSTHM.post &#8212; PaleoSTeHM 1.0.0-beta documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=3fd7a760"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PSTHM.post</h1><div class="highlight"><pre>
+<span></span><span class="c1">#----------------------Define Functions---------------------------</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">pyro</span>
+<span class="kn">import</span> <span class="nn">pyro.distributions</span> <span class="k">as</span> <span class="nn">dist</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">interpolate</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">pyro.infer</span> <span class="kn">import</span> <span class="n">Predictive</span>
+
+<div class="viewcode-block" id="gen_pred_matrix">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.gen_pred_matrix">[docs]</a>
+<span class="k">def</span> <span class="nf">gen_pred_matrix</span><span class="p">(</span><span class="n">age</span><span class="p">,</span><span class="n">lat</span><span class="p">,</span><span class="n">lon</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to generate an input matrix for Spatio-temporal GP model</span>
+
+<span class="sd">    ----------Inputs----------------</span>
+<span class="sd">    age: a numpy array, age of the prediction points</span>
+<span class="sd">    lat: a numpy array, latitude of the prediction points</span>
+<span class="sd">    lon: a numpy array, longitude of the prediction points</span>
+
+<span class="sd">    ----------Outputs----------------</span>
+<span class="sd">    output_matrix: a torch tensor, input matrix for the spatio-temporal GP model</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">age</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">age</span><span class="p">)</span>
+    <span class="n">lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
+
+    <span class="n">lon_matrix</span><span class="p">,</span><span class="n">lat_matrix</span><span class="p">,</span><span class="n">age_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span><span class="n">lat</span><span class="p">,</span><span class="n">age</span><span class="p">)</span>
+    
+    <span class="n">output_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">age_matrix</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:,</span><span class="kc">None</span><span class="p">],</span><span class="n">lat_matrix</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:,</span><span class="kc">None</span><span class="p">],</span><span class="n">lon_matrix</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:,</span><span class="kc">None</span><span class="p">]]))</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">output_matrix</span></div>
+
+
+<div class="viewcode-block" id="cal_rate_var">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_rate_var">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_rate_var</span><span class="p">(</span><span class="n">test_X</span><span class="p">,</span><span class="n">cov_matrix</span><span class="p">,</span><span class="n">mean_rsl</span><span class="p">,</span><span class="n">difftimestep</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of </span>
+<span class="sd">    GP).</span>
+<span class="sd">    ------------------Inputs----------------------------</span>
+<span class="sd">    test_X: an array of test input values</span>
+<span class="sd">    cov_matrix: full covariance matrix from GP regression</span>
+<span class="sd">    mean_rsl: GP regression produced mean RSL prediction</span>
+<span class="sd">    difftimestep: time period for averaging </span>
+<span class="sd">    </span>
+<span class="sd">    ------------------Outputs---------------------------</span>
+<span class="sd">    difftimes: time series for the outputs</span>
+<span class="sd">    rate: averaged sea-level change rate</span>
+<span class="sd">    rate_sd: averaged sea-level change rate standard deviation</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="n">Mdiff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">test_X</span><span class="p">,</span> <span class="n">test_X</span><span class="o">.</span><span class="n">T</span><span class="p">),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">test_X</span><span class="p">,</span> <span class="n">test_X</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="n">difftimestep</span><span class="p">),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">Mdiff</span> <span class="o">=</span> <span class="n">Mdiff</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">test_X</span><span class="p">))</span><span class="o">*</span><span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">test_X</span><span class="p">)))</span>
+    <span class="n">sub</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">Mdiff</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">Mdiff</span> <span class="o">=</span> <span class="n">Mdiff</span><span class="p">[</span><span class="n">sub</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">difftimes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Mdiff</span><span class="p">)</span> <span class="o">@</span> <span class="n">test_X</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Mdiff</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">Mdiff</span> <span class="o">=</span> <span class="n">Mdiff</span> <span class="o">/</span> <span class="p">(</span><span class="n">Mdiff</span> <span class="o">@</span> <span class="n">test_X</span><span class="o">.</span><span class="n">T</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">rate_sd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">Mdiff</span> <span class="o">@</span> <span class="n">cov_matrix</span> <span class="o">@</span> <span class="n">Mdiff</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
+    <span class="n">rate</span> <span class="o">=</span> <span class="n">Mdiff</span> <span class="o">@</span> <span class="n">mean_rsl</span>
+    
+    <span class="k">return</span> <span class="n">difftimes</span><span class="p">,</span><span class="n">rate</span><span class="p">,</span> <span class="n">rate_sd</span></div>
+
+
+
+<div class="viewcode-block" id="decompose_kernels">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.decompose_kernels">[docs]</a>
+<span class="k">def</span> <span class="nf">decompose_kernels</span><span class="p">(</span><span class="n">gpr</span><span class="p">,</span><span class="n">pred_matrix</span><span class="p">,</span><span class="n">kernels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to calculate different kernels contribution to final prediction</span>
+
+<span class="sd">    ------------------Inputs----------------------------</span>
+<span class="sd">    gpr: an optimized pyro GP regression model</span>
+<span class="sd">    pred_matrix: a torch tensor of prediction matrix containing the data points for prediction</span>
+<span class="sd">    kernels: a list of pyro kernels for decomposition</span>
+
+<span class="sd">    ------------------Outputs---------------------------</span>
+<span class="sd">    output: a list of tuples, each tuple contains the mean and covariance of the prediction for each kernel </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">pred_matrix</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">f_loc</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">y</span> <span class="o">-</span> <span class="n">gpr</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">latent_shape</span> <span class="o">=</span> <span class="n">f_loc</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">loc_shape</span> <span class="o">=</span> <span class="n">latent_shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">M</span><span class="p">,)</span>
+    <span class="n">f_loc</span> <span class="o">=</span> <span class="n">f_loc</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">latent_shape</span><span class="p">)))</span>
+    <span class="n">f_loc_2D</span> <span class="o">=</span> <span class="n">f_loc</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">loc_shape</span> <span class="o">=</span> <span class="n">latent_shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">M</span><span class="p">,)</span>
+    <span class="n">v_2D</span> <span class="o">=</span> <span class="n">f_loc_2D</span>
+    <span class="n">Kff</span> <span class="o">=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">jitter</span> <span class="o">+</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span>   <span class="c1"># add noise to the diagonal</span>
+    <span class="k">elif</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+        <span class="n">Kff</span> <span class="o">=</span> <span class="n">Kff</span> <span class="o">+</span> <span class="n">gpr</span><span class="o">.</span><span class="n">noise</span>
+        <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">gpr</span><span class="o">.</span><span class="n">jitter</span> 
+    <span class="n">Lff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">Kff</span><span class="p">)</span>
+    
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">kernel</span> <span class="ow">in</span> <span class="n">kernels</span><span class="p">:</span>
+        <span class="n">Kfs</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">(</span><span class="n">gpr</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">pred_matrix</span><span class="p">)</span>
+        <span class="n">pack</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">f_loc_2D</span><span class="p">,</span> <span class="n">Kfs</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">Lffinv_pack</span> <span class="o">=</span> <span class="n">pack</span><span class="o">.</span><span class="n">triangular_solve</span><span class="p">(</span><span class="n">Lff</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="kc">False</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">W</span> <span class="o">=</span> <span class="n">Lffinv_pack</span><span class="p">[:,</span> <span class="n">f_loc_2D</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span><span class="n">f_loc_2D</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">M</span><span class="p">]</span><span class="o">.</span><span class="n">t</span><span class="p">()</span>
+        <span class="n">Qss</span> <span class="o">=</span> <span class="n">W</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">W</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+        <span class="n">v_2D</span> <span class="o">=</span> <span class="n">Lffinv_pack</span><span class="p">[:,</span> <span class="p">:</span><span class="n">f_loc_2D</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="n">W</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">v_2D</span><span class="p">)</span><span class="o">.</span><span class="n">t</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">loc_shape</span><span class="p">)</span>
+        <span class="n">Kss</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">(</span><span class="n">pred_matrix</span><span class="p">)</span>
+        <span class="n">cov</span> <span class="o">=</span> <span class="n">Kss</span> <span class="o">-</span> <span class="n">Qss</span>
+        <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">loc</span><span class="p">,</span> <span class="n">cov</span><span class="p">))</span>
+        
+    <span class="k">return</span> <span class="n">output</span></div>
+
+
+<div class="viewcode-block" id="cal_misfit">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_misfit">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_misfit</span><span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">,</span><span class="n">prediction</span><span class="p">):</span>
+    
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(((</span><span class="n">y</span><span class="o">-</span><span class="n">prediction</span><span class="p">)</span><span class="o">/</span><span class="n">y_sigma</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="cal_likelihood">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_likelihood">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_likelihood</span><span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">y_std</span><span class="p">,</span><span class="n">pred</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;A function used to calcualte log likelihood function for a given prediction.</span>
+<span class="sd">    This calculation only considers uncertainty in y axis. </span>
+<span class="sd">    </span>
+<span class="sd">    ------------Inputs------------------</span>
+<span class="sd">    y: reconstructed rsl</span>
+<span class="sd">    y_std: standard deviation of reconstructed rsl</span>
+<span class="sd">    pred: mean predction of rsl</span>
+<span class="sd">    </span>
+<span class="sd">    ------------Outputs------------------</span>
+<span class="sd">    likelihood: mean likelihood of prediction fit to observation</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">norm</span>
+
+    <span class="n">log_likelihood</span> <span class="o">=</span> <span class="mi">1</span> 
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)):</span>
+        
+        <span class="n">norm_dis</span> <span class="o">=</span> <span class="n">norm</span><span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">y_std</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">log_likelihood</span><span class="o">+=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">norm_dis</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">pred</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+    
+    <span class="k">return</span> <span class="n">log_likelihood</span></div>
+
+
+<div class="viewcode-block" id="cal_MSE">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_MSE">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_MSE</span><span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">yhat</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to calculate MSE coefficient</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">MSE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">yhat</span><span class="o">-</span><span class="n">y</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">MSE</span></div>
+
+
+
+<div class="viewcode-block" id="cal_wMSE">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_wMSE">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_wMSE</span><span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">yhat</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to calculate weighted MSE coefficient</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">wMSE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">yhat</span><span class="o">-</span><span class="n">y</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="n">y_sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wMSE</span></div>
+
+    
+
+<div class="viewcode-block" id="get_change_point_posterior">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.get_change_point_posterior">[docs]</a>
+<span class="k">def</span> <span class="nf">get_change_point_posterior</span><span class="p">(</span><span class="n">guide</span><span class="p">,</span> <span class="n">sample_number</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Function to sample from the guide and return posterior samples for change point model</span>
+<span class="sd">    </span>
+<span class="sd">    ----------Inputs----------</span>
+<span class="sd">    guide: pyro model guide</span>
+<span class="sd">    sample_number: int, number of samples to draw from the guide</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Initialize dictionary to store posterior samples</span>
+    <span class="n">output_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">num_cp</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">guide</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="o">-</span><span class="mi">2</span><span class="p">][</span><span class="nb">list</span><span class="p">(</span><span class="n">guide</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="c1"># Extract median values to determine the number of change points and setup output structure</span>
+    <span class="n">median_values</span> <span class="o">=</span> <span class="n">guide</span><span class="o">.</span><span class="n">median</span><span class="p">()</span>
+    <span class="n">a_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;a_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_cp</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span>
+    <span class="n">cp_keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cp_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_cp</span><span class="p">)]</span>
+    <span class="n">num_cp</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cp_keys</span><span class="p">)</span>
+    <span class="n">num_as</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a_keys</span><span class="p">)</span>
+
+    <span class="c1"># Initialize arrays for posterior samples</span>
+    <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">sample_number</span><span class="p">)</span>
+    <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sample_number</span><span class="p">,</span> <span class="n">num_as</span><span class="p">))</span>
+    <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;cp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sample_number</span><span class="p">,</span> <span class="n">num_cp</span><span class="p">))</span>
+    
+    <span class="c1"># Get the sorted index for change points to maintain order</span>
+    <span class="n">cp_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">median_values</span><span class="p">[</span><span class="n">cp_key</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="k">for</span> <span class="n">cp_key</span> <span class="ow">in</span> <span class="n">cp_keys</span><span class="p">]</span>
+    <span class="n">cp_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">cp_values</span><span class="p">)</span>
+
+    <span class="c1"># Sample from the guide and store results</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">sample_number</span><span class="p">):</span>
+        <span class="n">posterior_samples</span> <span class="o">=</span> <span class="n">guide</span><span class="p">()</span>
+        <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">posterior_samples</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">posterior_samples</span><span class="p">[</span><span class="n">a_keys</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_as</span><span class="p">)])</span>
+        <span class="n">output_dict</span><span class="p">[</span><span class="s1">&#39;cp&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">posterior_samples</span><span class="p">[</span><span class="n">cp_keys</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">cp_index</span><span class="p">])</span>
+    
+    <span class="k">return</span> <span class="n">output_dict</span></div>
+
+
+
+<div class="viewcode-block" id="change_point_forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.change_point_forward">[docs]</a>
+<span class="k">def</span> <span class="nf">change_point_forward</span><span class="p">(</span><span class="n">n_cp</span><span class="p">,</span><span class="n">cp_loc_list</span><span class="p">,</span><span class="n">new_X</span><span class="p">,</span><span class="n">data_X</span><span class="p">,</span><span class="n">beta_coef_list</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to calculate the forward model of the change-point model</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    n_cp: int, number of change-points</span>
+<span class="sd">    cp_loc_list: 1D torch tensor with shape (n_cp), the location of the change-points</span>
+<span class="sd">    new_X: 2D torch tensor with shape (n_samples,n_features) for new data prediction</span>
+<span class="sd">    data_X: 2D torch tensor with shape (n_samples,n_features) for training data</span>
+<span class="sd">    beta_coef_list: 1D torch tensor with shape (n_cp+1), the slope coefficients</span>
+<span class="sd">    b: float, the intercept coefficient</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">last_intercept</span> <span class="o">=</span> <span class="n">b</span>
+    <span class="n">cp_loc_prior</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">data_X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span><span class="n">data_X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">3</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">gap</span> <span class="o">=</span> <span class="n">cp_loc_prior</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">cp_loc_prior</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">initial_age</span><span class="p">,</span> <span class="n">ending_age</span> <span class="o">=</span> <span class="n">data_X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">-</span><span class="n">gap</span><span class="p">,</span><span class="n">data_X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="n">gap</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">new_X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">initial_age</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">new_X</span><span class="o">&lt;</span><span class="n">end_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+            <span class="n">last_change_point</span> <span class="o">=</span> <span class="n">start_age</span>
+        <span class="k">elif</span> <span class="n">i</span><span class="o">==</span><span class="n">n_cp</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">new_X</span><span class="o">&gt;=</span><span class="n">start_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">ending_age</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">new_X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">new_X</span><span class="o">&gt;=</span><span class="n">start_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">new_X</span><span class="o">&lt;</span><span class="n">end_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+        
+        <span class="n">mean</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">beta_coef_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">new_X</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">:,</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">last_change_point</span><span class="p">)</span> <span class="o">+</span> <span class="n">last_intercept</span>
+        <span class="n">last_intercept</span> <span class="o">=</span> <span class="n">beta_coef_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">end_age</span><span class="o">-</span><span class="n">last_change_point</span><span class="p">)</span> <span class="o">+</span> <span class="n">last_intercept</span>
+        <span class="n">last_change_point</span> <span class="o">=</span> <span class="n">end_age</span>
+
+    <span class="k">return</span> <span class="n">mean</span></div>
+
+
+
+
+<div class="viewcode-block" id="cal_geo_dist2">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.post.cal_geo_dist2">[docs]</a>
+<span class="k">def</span> <span class="nf">cal_geo_dist2</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to calculate the squared distance matrix between each pair of X.</span>
+<span class="sd">    The function takes a PyTorch tensor of X and returns a matrix</span>
+<span class="sd">    where matrix[i, j] represents the spatial distance between the i-th and j-th X.</span>
+<span class="sd">    </span>
+<span class="sd">    -------Inputs-------</span>
+<span class="sd">    X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X</span>
+<span class="sd">    R: approximate radius of earth in km</span>
+<span class="sd">    </span>
+<span class="sd">    -------Outputs-------</span>
+<span class="sd">    distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+
+    <span class="c1"># Convert coordinates to radians</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+    <span class="n">X_coordinates_rad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">Z_coordinates_rad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+    
+    <span class="c1"># Extract latitude and longitude tensors</span>
+    <span class="n">X_latitudes_rad</span> <span class="o">=</span> <span class="n">X_coordinates_rad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">X_longitudes_rad</span> <span class="o">=</span> <span class="n">X_coordinates_rad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">Z_latitudes_rad</span> <span class="o">=</span> <span class="n">Z_coordinates_rad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">Z_longitudes_rad</span> <span class="o">=</span> <span class="n">Z_coordinates_rad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Calculate differences in latitude and longitude</span>
+    <span class="n">dlat</span> <span class="o">=</span> <span class="n">X_latitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z_latitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">dlon</span> <span class="o">=</span> <span class="n">X_longitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z_longitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="c1"># Apply Haversine formula</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dlat</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">X_latitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">Z_latitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dlon</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">a</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">c</span><span class="o">**</span><span class="mi">2</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apidoc.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

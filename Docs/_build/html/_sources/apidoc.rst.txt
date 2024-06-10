@@ -5,7 +5,7 @@ API Reference
 *************
 
 .. toctree::
-    :maxdepth: 4
+    :maxdepth: 5
 
 PaleoSTeHM
 ==========
@@ -54,15 +54,6 @@ PSTHM.post module
 -----------------
 
 .. automodule:: PSTHM.post
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Module contents
----------------
-
-.. automodule:: PSTHM
     :members:
     :undoc-members:
     :show-inheritance:

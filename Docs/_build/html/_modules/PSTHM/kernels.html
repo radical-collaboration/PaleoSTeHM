@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSTHM.kernels &#8212; PaleoSTeHM 1.0.0-beta documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=3fd7a760"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PSTHM.kernels</h1><div class="highlight"><pre>
+<span></span><span class="c1">#----------------------Define Functions---------------------------</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">constraints</span>
+<span class="kn">from</span> <span class="nn">pyro.nn.module</span> <span class="kn">import</span> <span class="n">PyroParam</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">constraints</span>
+<span class="kn">from</span> <span class="nn">pyro.contrib.gp.kernels.kernel</span> <span class="kn">import</span> <span class="n">Kernel</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">numbers</span>
+
+<span class="c1">#some of the kernels here are based on pyro gp kenrels: https://docs.pyro.ai/en/stable/contrib.gp.html</span>
+
+<span class="c1">#-------------------------Define kernel operations-------------------------</span>
+
+
+
+<div class="viewcode-block" id="Combination">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Combination">[docs]</a>
+<span class="k">class</span> <span class="nc">Combination</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for kernels derived from a combination of kernels.</span>
+
+<span class="sd">    :param Kernel kern0: First kernel to combine.</span>
+<span class="sd">    :param kern1: Second kernel to combine.</span>
+<span class="sd">    :type kern1: Kernel or numbers.Number</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kern0</span><span class="p">,</span> <span class="n">kern1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kern0</span><span class="p">,</span> <span class="n">Kernel</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;The first component of a combined kernel must be a &quot;</span> <span class="s2">&quot;Kernel instance.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">kern1</span><span class="p">,</span> <span class="n">Kernel</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kern1</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Number</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;The second component of a combined kernel must be a &quot;</span>
+                <span class="s2">&quot;Kernel instance or a number.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">active_dims</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">kern0</span><span class="o">.</span><span class="n">active_dims</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kern1</span><span class="p">,</span> <span class="n">Kernel</span><span class="p">):</span>
+            <span class="n">active_dims</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">(</span><span class="n">kern1</span><span class="o">.</span><span class="n">active_dims</span><span class="p">)</span>
+        <span class="n">active_dims</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">active_dims</span><span class="p">)</span>
+        <span class="n">input_dim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">active_dims</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">kern0</span> <span class="o">=</span> <span class="n">kern0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kern1</span> <span class="o">=</span> <span class="n">kern1</span></div>
+
+
+
+
+<div class="viewcode-block" id="Sum">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Sum">[docs]</a>
+<span class="k">class</span> <span class="nc">Sum</span><span class="p">(</span><span class="n">Combination</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a new kernel which acts like a sum/direct sum of two kernels.</span>
+<span class="sd">    The second kernel can be a constant.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Sum.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Sum.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kern1</span><span class="p">,</span> <span class="n">Kernel</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern0</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern1</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># constant</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern0</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern1</span></div>
+</div>
+
+
+
+
+<div class="viewcode-block" id="Product">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Product">[docs]</a>
+<span class="k">class</span> <span class="nc">Product</span><span class="p">(</span><span class="n">Combination</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a new kernel which acts like a product/tensor product of two kernels.</span>
+<span class="sd">    The second kernel can be a constant.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Product.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Product.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kern1</span><span class="p">,</span> <span class="n">Kernel</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern0</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern1</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># constant</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern0</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="n">diag</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">kern1</span></div>
+</div>
+
+
+
+
+<span class="c1">#-------------------------Define Spatio-temporal GP kernels-------------------------</span>
+<span class="k">def</span> <span class="nf">_torch_sqrt</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A convenient function to avoid the NaN gradient issue of :func:`torch.sqrt`</span>
+<span class="sd">    at 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Ref: https://github.com/pytorch/pytorch/issues/2421</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+
+<div class="viewcode-block" id="check_geo_dim">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.check_geo_dim">[docs]</a>
+<span class="k">def</span> <span class="nf">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to check if the dimension of X is correct.</span>
+
+<span class="sd">    -------Inputs-------</span>
+<span class="sd">    X: PyTorch tensor input for Gaussian Process</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">!=</span><span class="mi">2</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">!=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The dimension of input X is not correct. If you use a spatio kernel, X should be in shape of n x 3: [age, lat, lon].&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_pseudo">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.check_pseudo">[docs]</a>
+<span class="k">def</span> <span class="nf">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to make sure there&#39;s no correlation between pseudo data and real data.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">,</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Z</span><span class="p">[:,</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">)</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">dis_fun</span></div>
+
+
+<div class="viewcode-block" id="Isotropy">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Isotropy">[docs]</a>
+<span class="k">class</span> <span class="nc">Isotropy</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for a family of isotropic covariance kernels which are functions of the</span>
+<span class="sd">    distance :math:`|x-z|/l`, where :math:`l` is the length-scale parameter.</span>
+
+<span class="sd">    By default, the parameter ``lengthscale`` has size 1. To use the isotropic version</span>
+<span class="sd">    (different lengthscale for each dimension), make sure that ``lengthscale`` has size</span>
+<span class="sd">    equal to ``input_dim``.</span>
+
+<span class="sd">    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">sp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">variance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">variance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">variance</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">lengthscale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">lengthscale</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">lengthscale</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">lengthscale</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">s_lengthscale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">s_lengthscale</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">s_lengthscale</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s_lengthscale</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sp</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">s_lengthscale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> 
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">=</span> <span class="n">geo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sp</span> <span class="o">=</span> <span class="n">sp</span>
+
+    <span class="k">def</span> <span class="nf">_square_scaled_dist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns :math:`\|\frac{X-Z}{l}\|^2`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">!=</span> <span class="n">Z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Inputs must have the same number of features.&quot;</span><span class="p">)</span>
+
+        <span class="n">scaled_X</span> <span class="o">=</span> <span class="n">X</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span>
+        <span class="n">scaled_Z</span> <span class="o">=</span> <span class="n">Z</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span>
+        <span class="n">X2</span> <span class="o">=</span> <span class="p">(</span><span class="n">scaled_X</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">Z2</span> <span class="o">=</span> <span class="p">(</span><span class="n">scaled_Z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">XZ</span> <span class="o">=</span> <span class="n">scaled_X</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">scaled_Z</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+        <span class="n">r2</span> <span class="o">=</span> <span class="n">X2</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">XZ</span> <span class="o">+</span> <span class="n">Z2</span><span class="o">.</span><span class="n">t</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">r2</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_scaled_dist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns :math:`\|\frac{X-Z}{l}\|`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_torch_sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_square_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_diag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the diagonal part of covariance matrix on active features.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_scaled_geo_dist2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        A function to calculate the squared distance matrix between each pair of X.</span>
+<span class="sd">        The function takes a PyTorch tensor of X and returns a matrix</span>
+<span class="sd">        where matrix[i, j] represents the spatial distance between the i-th and j-th X.</span>
+<span class="sd">        </span>
+<span class="sd">        -------Inputs-------</span>
+<span class="sd">        X: PyTorch tensor of shape (n, 2), representing n pairs of (lat, lon) X</span>
+<span class="sd">        R: approximate radius of earth in km</span>
+<span class="sd">        </span>
+<span class="sd">        -------Outputs-------</span>
+<span class="sd">        distance_matrix: PyTorch tensor of shape (n, n), representing the distance matrix</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span> <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span><span class="mi">1</span><span class="p">:]</span> <span class="c1">#use lat and lon to calculate spatial distance</span>
+        <span class="k">if</span> <span class="n">Z</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">Z</span><span class="p">[:,</span><span class="mi">1</span><span class="p">:]</span> <span class="c1">#use lat and lon to calculate spatial distance</span>
+
+        <span class="c1"># Convert coordinates to radians</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+ 
+        <span class="n">X_coordinates_rad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Z_coordinates_rad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+        
+        <span class="c1"># Extract latitude and longitude tensors</span>
+        <span class="n">X_latitudes_rad</span> <span class="o">=</span> <span class="n">X_coordinates_rad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">X_longitudes_rad</span> <span class="o">=</span> <span class="n">X_coordinates_rad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">Z_latitudes_rad</span> <span class="o">=</span> <span class="n">Z_coordinates_rad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">Z_longitudes_rad</span> <span class="o">=</span> <span class="n">Z_coordinates_rad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+
+         <span class="c1"># Calculate differences in latitude and longitude</span>
+        <span class="n">dlat</span> <span class="o">=</span> <span class="n">X_latitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z_latitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">dlon</span> <span class="o">=</span> <span class="n">X_longitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z_longitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="c1"># Apply Haversine formula</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dlat</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">X_latitudes_rad</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">Z_latitudes_rad</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dlon</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">a</span><span class="p">))</span>
+
+        <span class="c1"># Calculate the distance matrix</span>
+        <span class="n">distance_matrix</span> <span class="o">=</span> <span class="n">c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">s_lengthscale</span>
+
+        <span class="k">return</span> <span class="n">distance_matrix</span><span class="o">**</span><span class="mi">2</span>
+    
+    <span class="k">def</span> <span class="nf">_scaled_geo_dist</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns :geo distance between X</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_torch_sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist2</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="RBF">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.RBF">[docs]</a>
+<span class="k">class</span> <span class="nc">RBF</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Radial Basis Function kernel:</span>
+
+<span class="sd">        :math:`k(x,z) = \sigma^2\exp\left(-0.5 \times \frac{|x-z|^2}{l^2}\right).`</span>
+
+<span class="sd">    .. note:: This kernel also has name `Squared Exponential` in literature.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span><span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span><span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RBF.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.RBF.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_square_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist2</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="c1">#no correlation for points with latitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span><span class="o">*</span><span class="n">dis_fun</span></div>
+</div>
+
+        
+<div class="viewcode-block" id="RationalQuadratic">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.RationalQuadratic">[docs]</a>
+<span class="k">class</span> <span class="nc">RationalQuadratic</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of RationalQuadratic kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2 \left(1 + 0.5 \times \frac{|x-z|^2}{\alpha l^2}</span>
+<span class="sd">        \right)^{-\alpha}.`</span>
+
+<span class="sd">    :param torch.Tensor scale_mixture: Scale mixture (:math:`\alpha`) parameter of this</span>
+<span class="sd">        kernel. Should have size 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">,</span>
+        <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">scale_mixture</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">geo</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span><span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">scale_mixture</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">scale_mixture</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale_mixture</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">scale_mixture</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RationalQuadratic.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.RationalQuadratic.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_square_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_mixture</span><span class="p">)</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_mixture</span>
+        <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist2</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale_mixture</span><span class="p">)</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">scale_mixture</span>
+            <span class="p">)</span>           </div>
+</div>
+
+        
+
+
+
+<div class="viewcode-block" id="Exponential">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Exponential">[docs]</a>
+<span class="k">class</span> <span class="nc">Exponential</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Exponential kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2\exp\left(-\frac{|x-z|}{l}\right).`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Exponential.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Exponential.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="c1">#no correlation for points with longtitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="p">)</span> <span class="o">*</span> <span class="n">dis_fun</span></div>
+</div>
+
+        
+
+<div class="viewcode-block" id="Matern21">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern21">[docs]</a>
+<span class="k">class</span> <span class="nc">Matern21</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Matern21 kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2\exp\left(- \frac{|x-z|}{l}\right).`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Matern21.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern21.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="p">)</span>
+        
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="c1">#no correlation for points with longtitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="p">)</span><span class="o">*</span><span class="n">dis_fun</span></div>
+</div>
+
+        
+
+<div class="viewcode-block" id="Matern32">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern32">[docs]</a>
+<span class="k">class</span> <span class="nc">Matern32</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Matern32 kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2\left(1 + \sqrt{3} \times \frac{|x-z|}{l}\right)</span>
+<span class="sd">        \exp\left(-\sqrt{3} \times \frac{|x-z|}{l}\right).`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Matern32.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern32.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="n">sqrt3_r</span> <span class="o">=</span> <span class="mi">3</span><span class="o">**</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">sqrt3_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">sqrt3_r</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="n">sqrt3_r</span> <span class="o">=</span> <span class="mi">3</span><span class="o">**</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r</span>
+            <span class="c1">#no correlation for points with longtitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">sqrt3_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">sqrt3_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">dis_fun</span></div>
+</div>
+
+        
+
+
+
+<div class="viewcode-block" id="Matern52">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern52">[docs]</a>
+<span class="k">class</span> <span class="nc">Matern52</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Matern52 kernel:</span>
+
+<span class="sd">        :math:`k(x,z)=\sigma^2\left(1+\sqrt{5}\times\frac{|x-z|}{l}+\frac{5}{3}\times</span>
+<span class="sd">        \frac{|x-z|^2}{l^2}\right)\exp\left(-\sqrt{5} \times \frac{|x-z|}{l}\right).`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Matern52.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Matern52.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_square_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">_torch_sqrt</span><span class="p">(</span><span class="n">r2</span><span class="p">)</span>
+            <span class="n">sqrt5_r</span> <span class="o">=</span> <span class="mi">5</span><span class="o">**</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">sqrt5_r</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">sqrt5_r</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">check_geo_dim</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">r2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist2</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">_torch_sqrt</span><span class="p">(</span><span class="n">r2</span><span class="p">)</span>
+            <span class="n">sqrt5_r</span> <span class="o">=</span> <span class="mi">5</span><span class="o">**</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">r</span>
+            <span class="c1">#no correlation for points with longtitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">check_pseudo</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">sqrt5_r</span> <span class="o">+</span> <span class="p">(</span><span class="mi">5</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">r2</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">sqrt5_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">dis_fun</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="WhiteNoise">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.WhiteNoise">[docs]</a>
+<span class="k">class</span> <span class="nc">WhiteNoise</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of WhiteNoise kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2 \delta(x, z),`</span>
+
+<span class="sd">    where :math:`\delta` is a Dirac delta function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">variance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">variance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">variance</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WhiteNoise.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.WhiteNoise.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">diag</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">X</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">Z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span></div>
+</div>
+
+    
+<div class="viewcode-block" id="WhiteNoise_SP">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.WhiteNoise_SP">[docs]</a>
+<span class="k">class</span> <span class="nc">WhiteNoise_SP</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of WhiteNoise kernel with multiple choices of spatial and temporal correlation:</span>
+
+<span class="sd">    if geo==True, then the kernel is spatially uncorrelated</span>
+<span class="sd">    if geo==False, then the kernel is a whiet noise kernel</span>
+
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span><span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">sp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">s_lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">,</span><span class="n">geo</span><span class="p">,</span><span class="n">sp</span><span class="p">)</span>
+
+<div class="viewcode-block" id="WhiteNoise_SP.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.WhiteNoise_SP.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span><span class="n">X</span>
+        
+        <span class="c1"># if self.sp==True:</span>
+        <span class="c1">#     tem_delta_fun = self._scaled_dist(X, Z)&lt;1e-4</span>
+        <span class="c1">#     sp_delta_fun = (self._scaled_geo_dist(X,Z)&lt;1e-4) &amp; torch.outer(X[:,2]&lt;361,Z[:,2]&lt;361)</span>
+
+        <span class="c1">#     return self.variance * (tem_delta_fun * sp_delta_fun).double()</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span>
+            <span class="n">delta_fun</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_geo_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span><span class="n">Z</span><span class="p">)</span><span class="o">&lt;</span><span class="mf">1e-4</span> 
+            <span class="c1">#no correlation for points with longtitude larger than 360, which suppose to be psuedo data</span>
+            <span class="n">dis_fun</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X</span><span class="p">)[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">,</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Z</span><span class="p">)[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">)</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">delta_fun</span><span class="o">.</span><span class="n">double</span><span class="p">()</span> <span class="o">*</span> <span class="n">dis_fun</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo</span><span class="o">==</span><span class="kc">False</span><span class="p">:</span>
+            <span class="n">delta_fun</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span><span class="o">&lt;</span><span class="mf">1e-4</span>  <span class="o">&amp;</span> <span class="n">torch</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">,</span><span class="n">Z</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span><span class="o">&lt;</span><span class="mi">361</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">delta_fun</span><span class="o">.</span><span class="n">double</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="Constant">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Constant">[docs]</a>
+<span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Constant kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2.`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">variance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">variance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">variance</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Constant.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Constant.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">Z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="Cosine">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Cosine">[docs]</a>
+<span class="k">class</span> <span class="nc">Cosine</span><span class="p">(</span><span class="n">Isotropy</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Cosine kernel:</span>
+
+<span class="sd">        :math:`k(x,z) = \sigma^2 \cos\left(\frac{|x-z|}{l}\right).`</span>
+
+<span class="sd">    :param torch.Tensor lengthscale: Length-scale parameter of this kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">lengthscale</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Cosine.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Cosine.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diag</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scaled_dist</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">r</span><span class="p">)</span></div>
+</div>
+
+
+
+
+<div class="viewcode-block" id="Periodic">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Periodic">[docs]</a>
+<span class="k">class</span> <span class="nc">Periodic</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Periodic kernel:</span>
+
+<span class="sd">        :math:`k(x,z)=\sigma^2\exp\left(-2\times\frac{\sin^2(\pi(x-z)/p)}{l^2}\right),`</span>
+
+<span class="sd">    where :math:`p` is the ``period`` parameter.</span>
+
+<span class="sd">    References:</span>
+
+<span class="sd">    [1] `Introduction to Gaussian processes`,</span>
+<span class="sd">    David J.C. MacKay</span>
+
+<span class="sd">    :param torch.Tensor lengthscale: Length scale parameter of this kernel.</span>
+<span class="sd">    :param torch.Tensor period: Period parameter of this kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lengthscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">variance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">variance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">variance</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+        <span class="n">lengthscale</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">lengthscale</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">lengthscale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">lengthscale</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+        <span class="n">period</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">period</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">period</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">period</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Periodic.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Periodic.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">!=</span> <span class="n">Z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Inputs must have the same number of features.&quot;</span><span class="p">)</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">Z</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">scaled_sin</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">d</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">lengthscale</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">scaled_sin</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="DotProduct">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.DotProduct">[docs]</a>
+<span class="k">class</span> <span class="nc">DotProduct</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for kernels which are functions of :math:`x \cdot z`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span><span class="n">ref_year</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">variance</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">variance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">variance</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="n">ref_year</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">0.</span><span class="p">)</span> <span class="k">if</span> <span class="n">ref_year</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ref_year</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ref_year</span> <span class="o">=</span> <span class="n">ref_year</span>
+    <span class="k">def</span> <span class="nf">_dot_product</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns :math:`X \cdot Z`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">X</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">Z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice_input</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">!=</span> <span class="n">Z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Inputs must have the same number of features.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">X</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+
+
+
+
+<div class="viewcode-block" id="Linear">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Linear">[docs]</a>
+<span class="k">class</span> <span class="nc">Linear</span><span class="p">(</span><span class="n">DotProduct</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Linear kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2 x \cdot z.`</span>
+
+<span class="sd">    Doing Gaussian Process regression with linear kernel is equivalent to doing a</span>
+<span class="sd">    linear regression.</span>
+
+<span class="sd">    .. note:: Here we implement the homogeneous version. To use the inhomogeneous</span>
+<span class="sd">        version, consider using :class:`Polynomial` kernel with ``degree=1`` or making</span>
+<span class="sd">        a :class:`.Sum` with a :class:`.Constant` kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span><span class="n">ref_year</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span><span class="n">ref_year</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Linear.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Linear.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">Z</span> <span class="o">==</span><span class="kc">None</span><span class="p">:</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="k">if</span> <span class="n">Z</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">Z</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dot_product</span><span class="p">(</span><span class="n">X</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_year</span><span class="p">,</span> <span class="n">Z</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_year</span><span class="p">,</span> <span class="n">diag</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="Polynomial">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Polynomial">[docs]</a>
+<span class="k">class</span> <span class="nc">Polynomial</span><span class="p">(</span><span class="n">DotProduct</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of Polynomial kernel:</span>
+
+<span class="sd">        :math:`k(x, z) = \sigma^2(\text{bias} + x \cdot z)^d.`</span>
+
+<span class="sd">    :param torch.Tensor bias: Bias parameter of this kernel. Should be positive.</span>
+<span class="sd">    :param int degree: Degree :math:`d` of the polynomial.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">variance</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+
+        <span class="n">bias</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">bias</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">bias</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variance</span><span class="o">=</span><span class="n">variance</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">degree</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">degree</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Degree for Polynomial kernel should be a positive integer.&quot;</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">degree</span> <span class="o">=</span> <span class="n">degree</span>
+
+<div class="viewcode-block" id="Polynomial.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Polynomial.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">Z</span> <span class="o">==</span><span class="kc">None</span><span class="p">:</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+        <span class="k">if</span> <span class="n">Z</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span> <span class="n">Z</span><span class="o">=</span> <span class="n">Z</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> 
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">variance</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dot_product</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">diag</span><span class="p">))</span> <span class="o">**</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="Sampling">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Sampling">[docs]</a>
+<span class="k">class</span> <span class="nc">Sampling</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of a sampling kernel where the input is a physical model ensemble,</span>
+<span class="sd">    and the kernel is the sampling covariance matrix of the ensemble. It includes a temporal gaussian tamper function, </span>
+<span class="sd">    to use it, user need to define taper length.</span>
+
+<span class="sd">    :param int input_dim: Dimension of input vectors.</span>
+<span class="sd">    :param list model_ensemble: A list of callable models that make up the ensemble.</span>
+<span class="sd">    :param np.ndarray weights: Optional weights for each model in the ensemble.</span>
+<span class="sd">    :param list active_dims: Indices of active dimensions.</span>
+<span class="sd">    :param int tau: temporal value for temporl gaussian taper function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">model_ensemble</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">active_dims</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ensemble</span> <span class="o">=</span> <span class="n">model_ensemble</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model_ensemble</span><span class="p">))</span> <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tau</span> <span class="o">=</span> <span class="n">tau</span>
+
+<div class="viewcode-block" id="Sampling.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.kernels.Sampling.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Z</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">diag</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># Collect predictions from each model in the ensemble</span>
+        <span class="n">all_pred</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">X</span><span class="p">))</span> <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ensemble</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">Z</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">Z</span> <span class="o">=</span> <span class="n">X</span>
+
+        <span class="c1"># Handle tapering</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tau</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Apply Gaussian taper based on the distance</span>
+            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">distance_matrix</span> <span class="o">=</span> <span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">**</span><span class="mi">2</span>
+            <span class="k">elif</span> <span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">distance_matrix</span> <span class="o">=</span> <span class="p">(</span><span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">][:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">Z</span><span class="p">[:,</span><span class="mi">0</span><span class="p">][</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">**</span><span class="mi">2</span>
+            
+            <span class="n">taper_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">distance_matrix</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tau</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">taper_matrix</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">diag</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="n">Z</span><span class="p">:</span>
+                <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">all_pred</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">aweights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">all_pred_Z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">Z</span><span class="p">))</span> <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ensemble</span><span class="p">])</span>
+                <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">all_pred</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">all_pred_Z</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()]),</span>
+                                    <span class="n">aweights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="n">all_pred</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">all_pred_Z</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">cov_matrix</span><span class="p">[:</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span><span class="n">n</span><span class="o">+</span><span class="n">m</span><span class="p">]</span>
+
+            <span class="c1"># Apply tapering</span>
+            <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">cov_matrix</span><span class="p">)</span> <span class="o">*</span> <span class="n">taper_matrix</span>
+            <span class="k">return</span> <span class="n">cov_matrix</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">all_pred</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">aweights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">cov_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">cov_matrix</span><span class="p">)</span><span class="o">.</span><span class="n">diag</span><span class="p">()</span>
+
+            <span class="c1"># Apply tapering if needed</span>
+            <span class="k">return</span> <span class="n">cov_matrix</span> <span class="o">*</span> <span class="n">taper_matrix</span><span class="o">.</span><span class="n">diag</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tau</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">cov_matrix</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apidoc.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

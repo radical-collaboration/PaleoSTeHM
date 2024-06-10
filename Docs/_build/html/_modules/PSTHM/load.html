@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSTHM.load &#8212; PaleoSTeHM 1.0.0-beta documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=3fd7a760"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PSTHM.load</h1><div class="highlight"><pre>
+<span></span><span class="c1">#----------------------Define Functions---------------------------</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">zipfile</span>
+
+
+<div class="viewcode-block" id="load_local_rsl_data">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.load.load_local_rsl_data">[docs]</a>
+<span class="k">def</span> <span class="nf">load_local_rsl_data</span><span class="p">(</span><span class="n">file</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to load rsl data from a csv file, this csv </span>
+<span class="sd">    file should be presented in the same format as NJ_CC.csv in data folder</span>
+
+<span class="sd">    ---------Inputs---------</span>
+<span class="sd">    file: str, the path to the csv file</span>
+
+<span class="sd">    ---------Outputs---------</span>
+<span class="sd">    X: torch.tensor, the age of rsl data</span>
+<span class="sd">    y: torch.tensor, the rsl data</span>
+<span class="sd">    y_sigma: torch.tensor, one sigma uncertainty of rsl data</span>
+<span class="sd">    x_sigma: torch.tensor, one uncertainty of age data</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1">#load data</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+    <span class="n">rsl</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSL&#39;</span><span class="p">]</span>
+    <span class="n">rsl_2sd</span> <span class="o">=</span><span class="p">(</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSLer_up_2sd&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSLer_low_2sd&#39;</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span> <span class="c1">#average up and low 2std</span>
+    <span class="n">rsl_age</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age&#39;</span><span class="p">]</span><span class="o">-</span><span class="mi">1950</span><span class="p">)</span> <span class="c1">#convert age from BP to CE</span>
+    <span class="n">rsl_age_2sd</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age_low_er_2sd&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age_up_er_2sd&#39;</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span> <span class="c1">#average up and low 2std</span>
+    <span class="n">rsl_lon</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Longitude&#39;</span><span class="p">]</span>
+    <span class="n">rsl_lat</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Latitude&#39;</span><span class="p">]</span>
+
+    <span class="c1">#convert RSL data into tonsors</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_age</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="c1">#standardise age</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">y_sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_2sd</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">x_sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_age_2sd</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">X</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">rsl_lon</span><span class="p">,</span><span class="n">rsl_lat</span></div>
+
+
+<div class="viewcode-block" id="load_regional_rsl_data">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.load.load_regional_rsl_data">[docs]</a>
+<span class="k">def</span> <span class="nf">load_regional_rsl_data</span><span class="p">(</span><span class="n">file</span><span class="p">,</span><span class="n">CE</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to load rsl data from a csv file, this csv </span>
+<span class="sd">    file should be presented in the same format as US_Atlantic_Coast_for_ESTGP.csv in data folder</span>
+
+<span class="sd">    ---------Inputs---------</span>
+<span class="sd">    file: str, the path to the csv file</span>
+
+<span class="sd">    ---------Outputs---------</span>
+<span class="sd">    marine_limiting: a list containing marine limiting data (details below)</span>
+<span class="sd">    SLIP: a list containing sea-level index point data</span>
+<span class="sd">    terrestrial limiting: a list containing terrestrial limiting data</span>
+
+<span class="sd">    data within each list:</span>
+<span class="sd">    X: torch.tensor, the age of rsl data</span>
+<span class="sd">    y: torch.tensor, the rsl data</span>
+<span class="sd">    y_sigma: torch.tensor, one sigma uncertainty of rsl data</span>
+<span class="sd">    x_sigma: torch.tensor, one uncertainty of age data</span>
+<span class="sd">    lon: numpy.array, </span>
+<span class="sd">    rsl_region: a number indicating the region where data locates at</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1">#load data</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+    <span class="n">rsl</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSL&#39;</span><span class="p">]</span>
+    <span class="n">rsl_2sd</span> <span class="o">=</span><span class="p">(</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSLer_up_2sd&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;RSLer_low_2sd&#39;</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span> <span class="c1">#average up and low 2std</span>
+    <span class="k">if</span> <span class="n">CE</span><span class="p">:</span>
+        <span class="n">rsl_age</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age&#39;</span><span class="p">]</span><span class="o">-</span><span class="mi">1950</span><span class="p">)</span> <span class="c1">#convert age from BP to CE</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rsl_age</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age&#39;</span><span class="p">]</span>
+    <span class="n">rsl_age_2sd</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age_low_er_2sd&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;Age_up_er_2sd&#39;</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span> <span class="c1">#average up and low 2std</span>
+    <span class="n">rsl_lon</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Longitude&#39;</span><span class="p">]</span>
+    <span class="n">rsl_lat</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Latitude&#39;</span><span class="p">]</span>
+    <span class="n">rsl_region</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Region.1&#39;</span><span class="p">]</span>
+    <span class="n">rsl_limiting</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;Limiting&#39;</span><span class="p">]</span>
+    <span class="n">marine_index</span><span class="p">,</span> <span class="n">SLIP_index</span><span class="p">,</span> <span class="n">terrestrial_index</span> <span class="o">=</span> <span class="n">rsl_limiting</span><span class="o">==-</span><span class="mi">1</span><span class="p">,</span> <span class="n">rsl_limiting</span><span class="o">==</span><span class="mi">0</span><span class="p">,</span> <span class="n">rsl_limiting</span><span class="o">==</span><span class="mi">1</span>
+
+    <span class="c1">#convert RSL data into tonsors</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_age</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="c1">#standardise age</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">y_sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_2sd</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">x_sigma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">rsl_age_2sd</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    
+    <span class="n">marine_limiting</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="p">[</span><span class="n">marine_index</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="n">marine_index</span><span class="p">],</span><span class="n">y_sigma</span><span class="p">[</span><span class="n">marine_index</span><span class="p">],</span>
+                       <span class="n">x_sigma</span><span class="p">[</span><span class="n">marine_index</span><span class="p">],</span><span class="n">rsl_lon</span><span class="p">[</span><span class="n">marine_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span><span class="n">rsl_lat</span><span class="p">[</span><span class="n">marine_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">rsl_region</span><span class="p">[</span><span class="n">marine_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+
+    <span class="n">SLIP</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">],</span><span class="n">y_sigma</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">],</span>
+                       <span class="n">x_sigma</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">],</span><span class="n">rsl_lon</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span><span class="n">rsl_lat</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">rsl_region</span><span class="p">[</span><span class="n">SLIP_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+
+    <span class="n">marine_limiting</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">],</span><span class="n">y_sigma</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">],</span>
+                      <span class="n">x_sigma</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">],</span><span class="n">rsl_lon</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span><span class="n">rsl_lat</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">rsl_region</span><span class="p">[</span><span class="n">terrestrial_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">marine_limiting</span><span class="p">,</span> <span class="n">SLIP</span><span class="p">,</span> <span class="n">marine_limiting</span></div>
+
+
+<div class="viewcode-block" id="load_PSMSL_data">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.load.load_PSMSL_data">[docs]</a>
+<span class="k">def</span> <span class="nf">load_PSMSL_data</span><span class="p">(</span><span class="n">data_folder</span><span class="p">,</span><span class="n">min_lat</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span><span class="n">max_lat</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span><span class="n">min_lon</span><span class="o">=-</span><span class="mi">90</span><span class="p">,</span><span class="n">max_lon</span><span class="o">=-</span><span class="mi">60</span><span class="p">,</span><span class="n">min_time_span</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span><span class="n">latest_age</span><span class="o">=</span><span class="mi">2000</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to load annual sea-level data from PSMSL (https://psmsl.org/), note the site file should be copy and pasted into the data folder.</span>
+<span class="sd">    We have filtered out data with -99999 value, missing data (with &#39;Y&#39; indicated) or any flagged data (i.e., the fourth column is not 0).</span>
+<span class="sd">    ---------Inputs---------</span>
+<span class="sd">    data_folder: str, the path to the data folder</span>
+<span class="sd">    min_lat: float, the minimum latitude of the region of interest</span>
+<span class="sd">    max_lat: float, the maximum latitude of the region of interest</span>
+<span class="sd">    min_lon: float, the minimum longitude of the region of interest</span>
+<span class="sd">    max_lon: float, the maximum longitude of the region of interest</span>
+
+<span class="sd">    ---------Outputs---------</span>
+<span class="sd">    US_AT_data: a list containing US Atlantic coast data </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">data_folder</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">!=</span><span class="s1">&#39;/&#39;</span><span class="p">:</span>
+        <span class="n">data_folder</span> <span class="o">=</span> <span class="n">data_folder</span><span class="o">+</span><span class="s1">&#39;/&#39;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">data_folder</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">5</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">zipfile</span><span class="o">.</span><span class="n">ZipFile</span><span class="p">(</span><span class="n">data_folder</span><span class="o">+</span><span class="s1">&#39;TG_data.zip&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">zip_ref</span><span class="p">:</span>
+            <span class="n">zip_ref</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">data_folder</span><span class="p">)</span>
+    <span class="n">site_file</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">data_folder</span><span class="o">+</span><span class="s1">&#39;/filelist.txt&#39;</span><span class="p">,</span><span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;;&#39;</span><span class="p">,</span><span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,)</span>
+    <span class="n">US_AT_index</span> <span class="o">=</span> <span class="p">(</span><span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">&gt;=</span><span class="n">min_lat</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">&lt;=</span><span class="n">max_lat</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span><span class="o">&gt;=</span><span class="n">min_lon</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span><span class="o">&lt;=</span><span class="n">max_lon</span><span class="p">)</span>
+    <span class="n">US_AT_site</span> <span class="o">=</span> <span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">0</span><span class="p">][</span><span class="n">US_AT_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+    <span class="n">US_AT_lat</span> <span class="o">=</span> <span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">][</span><span class="n">US_AT_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+    <span class="n">US_AT_lon</span> <span class="o">=</span> <span class="n">site_file</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">2</span><span class="p">][</span><span class="n">US_AT_index</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+
+    <span class="c1">#generate US Atlantic coast data</span>
+    <span class="n">US_AT_data</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">US_AT_site</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">US_AT_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">US_AT_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">data_folder</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;.rlrdata&#39;</span><span class="p">,</span><span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;;&#39;</span><span class="p">,</span><span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">US_AT_data</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">US_AT_lat</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">US_AT_data</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">US_AT_lon</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">data_folder</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;.rlrdata&#39;</span><span class="p">,</span><span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;;&#39;</span><span class="p">,</span><span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+            <span class="n">tmp</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">US_AT_lat</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">tmp</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="n">US_AT_lon</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">US_AT_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">US_AT_data</span><span class="p">,</span><span class="n">tmp</span><span class="p">],</span><span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    
+    <span class="n">data_filter</span> <span class="o">=</span> <span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">!=-</span><span class="mi">99999</span>
+    <span class="n">data_filter_2</span> <span class="o">=</span> <span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span><span class="o">==</span><span class="s1">&#39;N&#39;</span>
+    <span class="n">data_filter_3</span> <span class="o">=</span> <span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">3</span><span class="p">]</span><span class="o">==</span><span class="mi">0</span>
+    <span class="n">US_site_coord</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">4</span><span class="p">:],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">data_filter_4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data_filter_3</span><span class="p">),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">data_filter_5</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data_filter_3</span><span class="p">),</span><span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">new_rsl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data_filter_3</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">US_site_coord</span><span class="p">)):</span>
+        <span class="n">site_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">4</span><span class="p">:],</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">US_site_coord</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">US_AT_data</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">US_AT_data</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span><span class="o">&gt;=</span><span class="n">min_time_span</span><span class="p">:</span>
+            <span class="n">data_filter_4</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">US_AT_data</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span><span class="o">&gt;=</span><span class="n">latest_age</span><span class="p">:</span>
+            <span class="n">data_filter_5</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">new_rsl</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">US_AT_data</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span> <span class="n">US_AT_data</span><span class="p">[</span><span class="n">site_index</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">US_AT_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_rsl</span>
+    <span class="n">data_filter_all</span> <span class="o">=</span> <span class="n">data_filter</span> <span class="o">&amp;</span> <span class="n">data_filter_2</span> <span class="o">&amp;</span> <span class="n">data_filter_3</span> <span class="o">&amp;</span> <span class="n">data_filter_4</span> <span class="o">&amp;</span> <span class="n">data_filter_5</span>
+    <span class="n">US_AT_data</span> <span class="o">=</span> <span class="n">US_AT_data</span><span class="p">[</span><span class="n">data_filter_all</span><span class="p">]</span>
+    
+    <span class="k">return</span> <span class="n">US_AT_data</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apidoc.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

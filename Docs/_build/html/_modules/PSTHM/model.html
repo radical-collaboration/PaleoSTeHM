@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PSTHM.model &#8212; PaleoSTeHM 1.0.0-beta documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../_static/documentation_options.js?v=3fd7a760"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PSTHM.model</h1><div class="highlight"><pre>
+<span></span><span class="c1">#----------------------Define Functions---------------------------</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">torch.distributions</span> <span class="k">as</span> <span class="nn">torchdist</span>
+<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">constraints</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">pyro</span>
+<span class="kn">import</span> <span class="nn">pyro.distributions</span> <span class="k">as</span> <span class="nn">dist</span>
+<span class="kn">from</span> <span class="nn">pyro.contrib.gp.models.model</span> <span class="kn">import</span> <span class="n">GPModel</span>
+<span class="kn">from</span> <span class="nn">pyro.contrib.gp.util</span> <span class="kn">import</span> <span class="n">conditional</span>
+<span class="kn">from</span> <span class="nn">pyro.nn.module</span> <span class="kn">import</span> <span class="n">PyroParam</span><span class="p">,</span> <span class="n">pyro_method</span>
+<span class="kn">from</span> <span class="nn">pyro.util</span> <span class="kn">import</span> <span class="n">warn_if_nan</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">interpolate</span>
+<span class="kn">from</span> <span class="nn">tqdm.notebook</span> <span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">constraints</span>
+<span class="kn">from</span> <span class="nn">pyro.contrib.gp.kernels.kernel</span> <span class="kn">import</span> <span class="n">Kernel</span>
+
+<span class="c1">#----------------------GP models---------------------------</span>
+
+<div class="viewcode-block" id="GPRegression_V">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_V">[docs]</a>
+<span class="k">class</span> <span class="nc">GPRegression_V</span><span class="p">(</span><span class="n">GPModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Gaussian Process Regression model.</span>
+
+<span class="sd">    The core of a Gaussian Process is a covariance function :math:`k` which governs</span>
+<span class="sd">    the similarity between input points. Given :math:`k`, we can establish a</span>
+<span class="sd">    distribution over functions :math:`f` by a multivarite normal distribution</span>
+
+<span class="sd">    .. math:: p(f(X)) = \mathcal{N}(0, k(X, X)),</span>
+
+<span class="sd">    where :math:`X` is any set of input points and :math:`k(X, X)` is a covariance</span>
+<span class="sd">    matrix whose entries are outputs :math:`k(x, z)` of :math:`k` over input pairs</span>
+<span class="sd">    :math:`(x, z)`. This distribution is usually denoted by</span>
+
+<span class="sd">    .. math:: f \sim \mathcal{GP}(0, k).</span>
+
+<span class="sd">    .. note:: Generally, beside a covariance matrix :math:`k`, a Gaussian Process can</span>
+<span class="sd">        also be specified by a mean function :math:`m` (which is a zero-value function</span>
+<span class="sd">        by default). In that case, its distribution will be</span>
+
+<span class="sd">        .. math:: p(f(X)) = \mathcal{N}(m(X), k(X, X)).</span>
+
+<span class="sd">    Given inputs :math:`X` and their noisy observations :math:`y`, the Gaussian Process</span>
+<span class="sd">    Regression model takes the form</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        f &amp;\sim \mathcal{GP}(0, k(X, X)),\\</span>
+<span class="sd">        y &amp; \sim f + \epsilon,</span>
+
+<span class="sd">    where :math:`\epsilon` is Gaussian noise.</span>
+
+<span class="sd">    .. note:: This model has :math:`\mathcal{O}(N^3)` complexity for training,</span>
+<span class="sd">        :math:`\mathcal{O}(N^3)` complexity for testing. Here, :math:`N` is the number</span>
+<span class="sd">        of train inputs.</span>
+
+<span class="sd">    Reference:</span>
+
+<span class="sd">    [1] `Gaussian Processes for Machine Learning`,</span>
+<span class="sd">    Carl E. Rasmussen, Christopher K. I. Williams</span>
+
+<span class="sd">    :param torch.Tensor X: A input data for training. Its first dimension is the number</span>
+<span class="sd">        of data points.</span>
+<span class="sd">    :param torch.Tensor y: An output data for training. Its last dimension is the</span>
+<span class="sd">        number of data points.</span>
+<span class="sd">    :param ~pyro.contrib.gp.kernels.kernel.Kernel kernel: A Pyro kernel object, which</span>
+<span class="sd">        is the covariance function :math:`k`.</span>
+<span class="sd">    :param torch.Tensor noise: Variance of Gaussian noise of this model.</span>
+<span class="sd">    :param callable mean_function: An optional mean function :math:`m` of this Gaussian</span>
+<span class="sd">        process. By default, we use zero mean.</span>
+<span class="sd">    :param float jitter: A small positive term which is added into the diagonal part of</span>
+<span class="sd">        a covariance matrix to help stablize its Cholesky decomposition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mean_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jitter</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">X</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="p">),</span> <span class="s2">&quot;X needs to be a torch Tensor instead of a </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">X</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">y</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+            <span class="p">),</span> <span class="s2">&quot;y needs to be a torch Tensor instead of a </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">mean_function</span><span class="p">,</span> <span class="n">jitter</span><span class="p">)</span>
+
+<span class="c1">#         noise = self.X.new_tensor(1.0) if noise is None else noise</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">double</span><span class="p">()</span> <span class="c1">#GP in pyro should use double precision</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">noise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">noise</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">noise</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span>  <span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">noise_store</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">),</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">))</span>
+                <span class="n">noise_store</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">noise</span> 
+                <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">noise_store</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">noise</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+               
+<div class="viewcode-block" id="GPRegression_V.model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_V.model">[docs]</a>
+    <span class="nd">@pyro_method</span>
+    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">)</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">Kff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">Kff</span> <span class="o">=</span> <span class="n">Kff</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span>
+        <span class="n">Lff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">Kff</span><span class="p">)</span>
+
+        <span class="n">zero_loc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">f_loc</span> <span class="o">=</span> <span class="n">zero_loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">f_var</span> <span class="o">=</span> <span class="n">Lff</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">f_loc</span><span class="p">,</span> <span class="n">f_var</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_pyro_get_fullname</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">dist</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">f_loc</span><span class="p">,</span> <span class="n">scale_tril</span><span class="o">=</span><span class="n">Lff</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">expand_by</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                <span class="n">obs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span>
+            <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GPRegression_V.guide">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_V.guide">[docs]</a>
+    <span class="nd">@pyro_method</span>
+    <span class="k">def</span> <span class="nf">guide</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_pyro_samples</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="GPRegression_V.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_V.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Xnew</span><span class="p">,</span> <span class="n">full_cov</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes the mean and covariance matrix (or variance) of Gaussian Process</span>
+<span class="sd">        posterior on a test input data :math:`X_{new}`:</span>
+
+<span class="sd">        .. math:: p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).</span>
+
+<span class="sd">        .. note:: The noise parameter ``noise`` (:math:`\epsilon`) together with</span>
+<span class="sd">            kernel&#39;s parameters have been learned from a training procedure (MCMC or</span>
+<span class="sd">            SVI).</span>
+
+<span class="sd">        :param torch.Tensor Xnew: A input data for testing. Note that</span>
+<span class="sd">            ``Xnew.shape[1:]`` must be the same as ``self.X.shape[1:]``.</span>
+<span class="sd">        :param bool full_cov: A flag to decide if we want to predict full covariance</span>
+<span class="sd">            matrix or just variance.</span>
+<span class="sd">        :param bool noiseless: A flag to decide if we want to include noise in the</span>
+<span class="sd">            prediction output or notest_cov[i:i+1]t.</span>
+<span class="sd">        :returns: loc and covariance matrix (or variance) of :math:`p(f^*(X_{new}))`</span>
+<span class="sd">        :rtype: tuple(torch.Tensor, torch.Tensor)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_Xnew_shape</span><span class="p">(</span><span class="n">Xnew</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">Kff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">Kff</span> <span class="o">=</span> <span class="n">Kff</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span>
+        <span class="c1"># Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal</span>
+        <span class="n">Lff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">Kff</span><span class="p">)</span>
+
+        <span class="n">y_residual</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">loc</span><span class="p">,</span> <span class="n">cov</span> <span class="o">=</span> <span class="n">conditional</span><span class="p">(</span>
+            <span class="n">Xnew</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">,</span>
+            <span class="n">y_residual</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="n">Lff</span><span class="p">,</span>
+            <span class="n">full_cov</span><span class="p">,</span>
+            <span class="n">jitter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">jitter</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="n">Xnew</span><span class="p">),</span> <span class="n">cov</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="GPRegression_EIV">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_EIV">[docs]</a>
+<span class="k">class</span> <span class="nc">GPRegression_EIV</span><span class="p">(</span><span class="n">GPModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Gaussian Process Regression model.</span>
+
+<span class="sd">    The core of a Gaussian Process is a covariance function :math:`k` which governs</span>
+<span class="sd">    the similarity between input points. Given :math:`k`, we can establish a</span>
+<span class="sd">    distribution over functions :math:`f` by a multivarite normal distribution</span>
+
+<span class="sd">    .. math:: p(f(X)) = \mathcal{N}(0, k(X, X)),</span>
+
+<span class="sd">    where :math:`X` is any set of input points and :math:`k(X, X)` is a covariance</span>
+<span class="sd">    matrix whose entries are outputs :math:`k(x, z)` of :math:`k` over input pairs</span>
+<span class="sd">    :math:`(x, z)`. This distribution is usually denoted by</span>
+
+<span class="sd">    .. math:: f \sim \mathcal{GP}(0, k).</span>
+
+<span class="sd">    .. note:: Generally, beside a covariance matrix :math:`k`, a Gaussian Process can</span>
+<span class="sd">        also be specified by a mean function :math:`m` (which is a zero-value function</span>
+<span class="sd">        by default). In that case, its distribution will be</span>
+
+<span class="sd">        .. math:: p(f(X)) = \mathcal{N}(m(X), k(X, X)).</span>
+
+<span class="sd">    Given inputs :math:`X` and their noisy observations :math:`y`, the Gaussian Process</span>
+<span class="sd">    Regression model takes the form</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        f &amp;\sim \mathcal{GP}(0, k(X, X)),\\</span>
+<span class="sd">        y &amp; \sim f + \epsilon,</span>
+
+<span class="sd">    where :math:`\epsilon` is Gaussian noise.</span>
+
+<span class="sd">    .. note:: This model has :math:`\mathcal{O}(N^3)` complexity for training,</span>
+<span class="sd">        :math:`\mathcal{O}(N^3)` complexity for testing. Here, :math:`N` is the number</span>
+<span class="sd">        of train inputs.</span>
+
+<span class="sd">    Reference:</span>
+
+<span class="sd">    [1] `Gaussian Processes for Machine Learning`,</span>
+<span class="sd">    Carl E. Rasmussen, Christopher K. I. Williams</span>
+
+<span class="sd">    :param torch.Tensor X: A input data for training. Its first dimension is the number</span>
+<span class="sd">        of data points.</span>
+<span class="sd">    :param torch.Tensor y: An output data for training. Its last dimension is the</span>
+<span class="sd">        number of data points.</span>
+<span class="sd">    :param ~pyro.contrib.gp.kernels.kernel.Kernel kernel: A Pyro kernel object, which</span>
+<span class="sd">        is the covariance function :math:`k`.</span>
+<span class="sd">    :param x_noise: A input data for training. Its first dimension is the number, representing </span>
+<span class="sd">        the variance of the error for age, which is usually obtained from radiocarbon dating </span>
+<span class="sd">    :param torch.Tensor noise: Variance of Gaussian noise of this model.</span>
+<span class="sd">    :param callable mean_function: An optional mean function :math:`m` of this Gaussian</span>
+<span class="sd">        process. By default, we use zero mean.</span>
+<span class="sd">    :param float jitter: A small positive term which is added into the diagonal part of</span>
+<span class="sd">        a covariance matrix to help stablize its Cholesky decomposition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_noise</span><span class="p">,</span><span class="n">kernel</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mean_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jitter</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">X</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="p">),</span> <span class="s2">&quot;X needs to be a torch Tensor instead of a </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">X</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">y</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+            <span class="p">),</span> <span class="s2">&quot;y needs to be a torch Tensor instead of a </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+       
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span><span class="n">kernel</span><span class="p">,</span> <span class="n">mean_function</span><span class="p">,</span> <span class="n">jitter</span><span class="p">)</span>
+       
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">x_noise</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">x_noise</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">))</span><span class="o">*</span><span class="n">x_noise</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_noise</span> <span class="o">=</span> <span class="n">x_noise</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">double</span><span class="p">()</span> <span class="c1">#GP in pyro should use double precision</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">noise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">noise</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">noise</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">positive</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span>  <span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">noise_store</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">),</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">))</span>
+                <span class="n">noise_store</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">noise</span> 
+                <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">noise_store</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="n">noise</span><span class="o">.</span><span class="n">double</span><span class="p">()</span>
+        
+<div class="viewcode-block" id="GPRegression_EIV.model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_EIV.model">[docs]</a>
+    <span class="nd">@pyro_method</span>
+    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">)</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">x_noise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;xerr&#39;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">),</span><span class="bp">self</span><span class="o">.</span><span class="n">x_noise</span><span class="o">**</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">X_noisy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+            <span class="n">X_noisy</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">+</span><span class="n">x_noise</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_noisy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+            <span class="n">X_noisy</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">x_noise</span>
+       
+        <span class="n">Kff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="n">X_noisy</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="n">Kff</span> <span class="o">=</span> <span class="n">Kff</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+        <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span>
+        <span class="c1"># Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to diagonal</span>
+        <span class="n">Lff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">Kff</span><span class="p">)</span>
+        <span class="n">zero_loc</span> <span class="o">=</span> <span class="n">X_noisy</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">X_noisy</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">f_loc</span> <span class="o">=</span> <span class="n">zero_loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="n">X_noisy</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">f_var</span> <span class="o">=</span> <span class="n">Lff</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">f_loc</span><span class="p">,</span> <span class="n">f_var</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="k">return</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_pyro_get_fullname</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">),</span>
+                <span class="n">dist</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">f_loc</span><span class="p">,</span> <span class="n">scale_tril</span><span class="o">=</span><span class="n">Lff</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">expand_by</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                <span class="n">obs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span>
+            <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="GPRegression_EIV.guide">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_EIV.guide">[docs]</a>
+    <span class="nd">@pyro_method</span>
+    <span class="k">def</span> <span class="nf">guide</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_pyro_samples</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="GPRegression_EIV.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GPRegression_EIV.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Xnew</span><span class="p">,</span> <span class="n">full_cov</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">noiseless</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes the mean and covariance matrix (or variance) of Gaussian Process</span>
+<span class="sd">        posterior on a test input data :math:`X_{new}`:</span>
+
+<span class="sd">        .. math:: p(f^* \mid X_{new}, X, y, k, \epsilon) = \mathcal{N}(loc, cov).</span>
+
+<span class="sd">        .. note:: The noise parameter ``noise`` (:math:`\epsilon`) together with</span>
+<span class="sd">            kernel&#39;s parameters have been learned from a training procedure (MCMC or</span>
+<span class="sd">            SVI).</span>
+
+<span class="sd">        :param torch.Tensor Xnew: A input data for testing. Note that</span>
+<span class="sd">            ``Xnew.shape[1:]`` must be the same as ``self.X.shape[1:]``.</span>
+<span class="sd">        :param bool full_cov: A flag to decide if we want to predict full covariance</span>
+<span class="sd">            matrix or just variance.</span>
+<span class="sd">        :param bool noiseless: A flag to decide if we want to include noise in the</span>
+<span class="sd">            prediction output or not.</span>
+<span class="sd">        :returns: loc and covariance matrix (or variance) of :math:`p(f^*(X_{new}))`</span>
+<span class="sd">        :rtype: tuple(torch.Tensor, torch.Tensor)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_Xnew_shape</span><span class="p">(</span><span class="n">Xnew</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_mode</span><span class="p">(</span><span class="s2">&quot;guide&quot;</span><span class="p">)</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">Kff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">Kff</span> <span class="o">=</span> <span class="n">Kff</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>
+            <span class="n">Kff</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[::</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jitter</span>
+
+        <span class="c1"># Kff.view(-1)[:: N + 1] += self.jitter + self.noise  # add noise to the diagonal</span>
+        <span class="n">Lff</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">Kff</span><span class="p">)</span>
+
+        <span class="n">y_residual</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">loc</span><span class="p">,</span> <span class="n">cov</span> <span class="o">=</span> <span class="n">conditional</span><span class="p">(</span>
+            <span class="n">Xnew</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kernel</span><span class="p">,</span>
+            <span class="n">y_residual</span><span class="p">,</span>
+            <span class="kc">None</span><span class="p">,</span>
+            <span class="n">Lff</span><span class="p">,</span>
+            <span class="n">full_cov</span><span class="p">,</span>
+            <span class="n">jitter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">jitter</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">full_cov</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">noiseless</span><span class="p">:</span>
+            <span class="n">M</span> <span class="o">=</span> <span class="n">Xnew</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">cov</span> <span class="o">=</span> <span class="n">cov</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="n">cov</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">M</span> <span class="o">*</span> <span class="n">M</span><span class="p">)[:,</span> <span class="p">::</span> <span class="n">M</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span>  <span class="c1"># add noise to the diagonal</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">full_cov</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">noiseless</span><span class="p">:</span>
+            <span class="n">cov</span> <span class="o">=</span> <span class="n">cov</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean_function</span><span class="p">(</span><span class="n">Xnew</span><span class="p">),</span> <span class="n">cov</span></div>
+</div>
+
+
+<div class="viewcode-block" id="GIA_ensemble">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GIA_ensemble">[docs]</a>
+<span class="k">class</span> <span class="nc">GIA_ensemble</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This is a class to define a GIA ensemble model as the mean function for GP</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    GIA_model_interp: a list of interpolation function that can 3D interpolate the</span>
+<span class="sd">    RSL history predicted by a GIA model</span>
+
+<span class="sd">    ------------Outputs--------------</span>
+<span class="sd">    mean: the prediction of the GIA ensemble model</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">GIA_model_interp</span><span class="p">,</span><span class="n">input_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_interp</span> <span class="o">=</span> <span class="n">GIA_model_interp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_num</span> <span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">GIA_model_interp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">PyroParam</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_num</span><span class="p">))</span>
+       
+<div class="viewcode-block" id="GIA_ensemble.forward">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.GIA_ensemble.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="n">pred_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_num</span><span class="p">,</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_num</span><span class="p">):</span>
+            <span class="n">pred_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">GIA_model_interp</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">X</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()))</span>
+        <span class="k">return</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span><span class="n">pred_matrix</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+</div>
+
+
+<span class="c1">#----------------------Linear regression models---------------------------</span>
+
+<div class="viewcode-block" id="change_point_model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.change_point_model">[docs]</a>
+<span class="k">def</span> <span class="nf">change_point_model</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">,</span><span class="n">n_cp</span><span class="p">,</span><span class="n">intercept_prior</span><span class="p">,</span><span class="n">coefficient_prior</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to define a change-point model in pyro</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    X: 2D torch tensor with shape (n_samples,n_features)</span>
+<span class="sd">    y: 1D torch tensor with shape (n_samples)</span>
+<span class="sd">    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model</span>
+<span class="sd">    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model</span>
+<span class="sd">    n_cp: int, number of change-points</span>
+<span class="sd">    intercept_prior: pyro distribution for the intercept coefficient</span>
+<span class="sd">    coefficient_prior: pyro distribution for the slope coefficient</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Define our intercept prior</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="n">intercept_prior</span><span class="p">)</span>
+    <span class="n">beta_coef_list</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">cp_loc_list</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_cp</span><span class="p">)</span>
+    <span class="c1">#Define our coefficient prior</span>
+    <span class="n">cp_loc_prior</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span><span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">3</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">gap</span> <span class="o">=</span> <span class="n">cp_loc_prior</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">cp_loc_prior</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">initial_age</span><span class="p">,</span> <span class="n">ending_age</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">-</span><span class="n">gap</span><span class="p">,</span><span class="n">X</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">+</span><span class="n">gap</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">beta_coef</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;a_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">coefficient_prior</span><span class="p">)</span>    
+        <span class="n">beta_coef_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">beta_coef</span>
+        <span class="k">if</span> <span class="n">i</span><span class="o">&lt;</span><span class="n">n_cp</span><span class="p">:</span>
+            <span class="n">cp_prior</span> <span class="o">=</span> <span class="n">dist</span><span class="o">.</span><span class="n">Uniform</span><span class="p">(</span><span class="n">cp_loc_prior</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="n">gap</span><span class="p">,</span><span class="n">cp_loc_prior</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">gap</span><span class="p">)</span>
+            <span class="n">cp_loc</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cp_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">cp_prior</span><span class="p">)</span>
+            <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">cp_loc</span>
+
+    <span class="n">x_noise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;xerr&#39;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">)</span><span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">x_noisy</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">x_noise</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">last_intercept</span> <span class="o">=</span> <span class="n">b</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_cp</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">initial_age</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">end_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x_noisy</span><span class="o">&lt;</span><span class="n">end_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">end_idx</span> <span class="o">=</span> <span class="mi">0</span>
+            
+            <span class="n">last_change_point</span> <span class="o">=</span> <span class="n">start_age</span>
+        <span class="k">elif</span> <span class="n">i</span><span class="o">==</span><span class="n">n_cp</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">start_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x_noisy</span><span class="o">&gt;=</span><span class="n">start_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">start_idx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span><span class="o">-</span><span class="mi">1</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">ending_age</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x_noisy</span><span class="o">&gt;=</span><span class="n">start_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">end_age</span> <span class="o">=</span> <span class="n">cp_loc_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x_noisy</span><span class="o">&lt;</span><span class="n">end_age</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+
+        <span class="n">mean</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">beta_coef_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">x_noisy</span><span class="p">[</span><span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span><span class="o">-</span><span class="n">last_change_point</span><span class="p">)</span> <span class="o">+</span> <span class="n">last_intercept</span>
+        <span class="n">last_intercept</span> <span class="o">=</span> <span class="n">beta_coef_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">end_age</span><span class="o">-</span><span class="n">last_change_point</span><span class="p">)</span> <span class="o">+</span> <span class="n">last_intercept</span>
+        <span class="n">last_change_point</span> <span class="o">=</span> <span class="n">end_age</span>
+        
+    <span class="k">with</span> <span class="n">pyro</span><span class="o">.</span><span class="n">plate</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>        
+        <span class="c1"># Condition the expected mean on the observed target y</span>
+        <span class="k">if</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ensemble_GIA_model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.ensemble_GIA_model">[docs]</a>
+<span class="k">def</span> <span class="nf">ensemble_GIA_model</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">,</span><span class="n">model_ensemble</span><span class="p">,</span><span class="n">model_age</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to define a linear model in pyro</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    X: 2D torch tensor with shape (n_samples,n_features)</span>
+<span class="sd">    y: 1D torch tensor with shape (n_samples)</span>
+<span class="sd">    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model</span>
+<span class="sd">    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Define our intercept prior</span>
+    <span class="c1"># weight_facor_list = torch.zeros(model_ensemble.shape[0])</span>
+    <span class="c1"># for i in range(model_ensemble.shape[0]):</span>
+    <span class="n">weight_facor_list</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;W&quot;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Dirichlet</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
+    <span class="c1"># weight_facor_list[i] = weight_factor</span>
+    <span class="c1">#generate random error for age</span>
+    <span class="n">x_noise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;obs_xerr&#39;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">)</span><span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">x_noisy</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">x_noise</span>
+    <span class="c1">#interpolate GIA model</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x_noisy</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">model_ensemble</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="n">GIA_model</span> <span class="o">=</span> <span class="n">interpolate</span><span class="o">.</span><span class="n">interp1d</span><span class="p">(</span><span class="n">model_age</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span><span class="n">model_ensemble</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
+        <span class="n">x_noisy</span><span class="p">[</span><span class="n">x_noisy</span><span class="o">&gt;</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()]</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+        <span class="n">x_noisy</span><span class="p">[</span><span class="n">x_noisy</span><span class="o">&lt;</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()]</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+
+        <span class="c1">#calculate mean prediction</span>
+       
+        <span class="n">mean</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">GIA_model</span><span class="p">(</span><span class="n">x_noisy</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()))</span> <span class="o">*</span><span class="n">weight_facor_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+   
+    <span class="k">with</span> <span class="n">pyro</span><span class="o">.</span><span class="n">plate</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>        
+        <span class="c1"># Condition the expected mean on the observed target y</span>
+        <span class="k">if</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span></div>
+
+   
+
+<div class="viewcode-block" id="linear_model">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.linear_model">[docs]</a>
+<span class="k">def</span> <span class="nf">linear_model</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">y_sigma</span><span class="p">,</span><span class="n">intercept_prior</span><span class="p">,</span><span class="n">coefficient_prior</span><span class="p">,</span><span class="n">whitenoise_prior</span> <span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to define a linear model in pyro</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    X: 2D torch tensor with shape (n_samples,n_features)</span>
+<span class="sd">    y: 1D torch tensor with shape (n_samples)</span>
+<span class="sd">    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model</span>
+<span class="sd">    y_sigma: float, standard deviation or covariance function of the error for the RSL, which is obtained from the RSL data model</span>
+<span class="sd">    intercept_prior: pyro distribution for the intercept coefficient</span>
+<span class="sd">    coefficient_prior: pyro distribution for the slope coefficient</span>
+<span class="sd">    whitenoise_prior: pyro distribution for the white noise</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Define our intercept prior</span>
+   
+    <span class="n">linear_combination</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="n">intercept_prior</span><span class="p">)</span>
+    <span class="c1">#Define our coefficient prior</span>
+   
+    <span class="n">beta_coef</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">coefficient_prior</span><span class="p">)</span>
+    <span class="c1">#generate random error for age</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">x_noise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;obs_xerr&#39;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">),</span><span class="n">x_sigma</span><span class="p">)</span><span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">x_noisy</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">x_noise</span>
+   
+    <span class="c1">#calculate mean prediction</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">linear_combination</span> <span class="o">+</span> <span class="p">(</span><span class="n">x_noisy</span> <span class="o">*</span> <span class="n">beta_coef</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">whitenoise_prior</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">whitenoise</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">whitenoise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;whitenoise&#39;</span><span class="p">,</span><span class="n">whitenoise_prior</span><span class="p">)</span>
+    
+    <span class="k">with</span> <span class="n">pyro</span><span class="o">.</span><span class="n">plate</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>        
+        <span class="c1"># Condition the expected mean on the observed target y</span>
+        <span class="n">y_sigma</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_sigma</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">whitenoise</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">**</span><span class="mf">0.5</span>
+        <span class="k">if</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">y_sigma</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">MultivariateNormal</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span></div>
+
+
+
+
+
+
+<div class="viewcode-block" id="linear_model_uniform">
+<a class="viewcode-back" href="../../apidoc.html#PSTHM.model.linear_model_uniform">[docs]</a>
+<span class="k">def</span> <span class="nf">linear_model_uniform</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span><span class="n">x_sigma</span><span class="p">,</span><span class="n">y_range</span><span class="p">,</span><span class="n">intercept_prior</span><span class="p">,</span><span class="n">coefficient_prior</span><span class="p">,</span><span class="n">whitenoise_prior</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A function to define a linear model with uniform likelihood in pyro</span>
+
+<span class="sd">    ------------Inputs--------------</span>
+<span class="sd">    X: 2D torch tensor with shape (n_samples,n_features)</span>
+<span class="sd">    y: 1D torch tensor with shape (n_samples), note y is the middle point of the paleo RSL range</span>
+<span class="sd">    x_sigma: float, standard deviation of the error for age, which is obtained from the age data model</span>
+<span class="sd">    y_range: float, upper and lower bound of the error for the paleo RSL, which is defined by different types of coral</span>
+<span class="sd">    intercept_prior: pyro distribution for the intercept coefficient</span>
+<span class="sd">    coefficient_prior: pyro distribution for the slope coefficient</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Define our intercept prior</span>
+   
+    <span class="n">linear_combination</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="n">intercept_prior</span><span class="p">)</span>
+    <span class="c1">#Define our coefficient prior</span>
+   
+    <span class="n">beta_coef</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">coefficient_prior</span><span class="p">)</span>
+    <span class="c1">#generate random error for age</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">x_noise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s1">&#39;obs_xerr&#39;</span><span class="p">,</span><span class="n">dist</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">),</span><span class="n">x_sigma</span><span class="p">)</span><span class="o">.</span><span class="n">to_event</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">x_noisy</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">x_noise</span>
+   
+    <span class="c1">#calculate mean prediction</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">linear_combination</span> <span class="o">+</span> <span class="p">(</span><span class="n">x_noisy</span> <span class="o">*</span> <span class="n">beta_coef</span><span class="p">)</span>
+    <span class="n">whitenoise</span> <span class="o">=</span> <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;whitenoise&quot;</span><span class="p">,</span><span class="n">whitenoise_prior</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">pyro</span><span class="o">.</span><span class="n">plate</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>        
+        <span class="c1"># Condition the expected mean on the observed target y</span>
+        <span class="n">y_up</span> <span class="o">=</span> <span class="n">mean</span> <span class="o">+</span> <span class="n">y_range</span> <span class="o">+</span><span class="n">whitenoise</span>
+        <span class="n">y_down</span> <span class="o">=</span> <span class="n">mean</span> <span class="o">-</span> <span class="n">y_range</span> <span class="o">-</span> <span class="n">whitenoise</span>
+        <span class="n">pyro</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">Uniform</span><span class="p">(</span><span class="n">y_down</span><span class="p">,</span><span class="n">y_up</span><span class="p">),</span> <span class="n">obs</span><span class="o">=</span><span class="n">y</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apidoc.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Yucheng Lin, Alex Reedy, Robert Kopp.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
