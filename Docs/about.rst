@@ -1,0 +1,16 @@
+.. _chapter_about:
+
+********
+About
+********
+.. toctree::
+    :maxdepth: 4
+
+PaleoSTeHM is a paleo-environmental modelling faced API based upon pyro, a universal probabilistic programming language supported by PyTorch on the backend. Therefore, it not only supports probabilistic programming not also the auto-differentiation and GPU acceleration. This API will provide easy-to-use models to infer the spatio or spatio-temporal variation of environmental change from geological data, with tutorials that cover the background theories and hand-on practicals.
+PaleoSTeHM can be found at:
+
+.. code-block:: none
+
+   https://github.com/radical-collaboration/PaleoSTeHM.git
+
+Please note that this repository is under active development by Yucheng Lin, Alex Reedy and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu.

@@ -5,15 +5,21 @@ import numpy as np
 import torch
 from scipy import interpolate
 import torch
-font = {'weight':'normal',
-       'size':20,
-       'family':'Helvetica'}
+import matplotlib.font_manager as fm
+
+# Define the desired font style
+font_style = {'weight': 'normal', 'size': 20, 'family': 'Helvetica'}
+
+# Check if the font family is available
+available_fonts = set(f.name for f in fm.fontManager.ttflist)
+if font_style['family'] in available_fonts:
+    plt.rc('font', **font_style)
+
 matplotlib.rcParams['xtick.major.size'] = 8
 matplotlib.rcParams['ytick.major.size'] = 8
 matplotlib.rcParams['axes.labelsize'] = 22
 matplotlib.rcParams['figure.figsize'] = (12, 6)
 matplotlib.rcParams['legend.frameon'] = 'False'
-matplotlib.rc('font',**font)
 
 def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None,CE=False):
     '''

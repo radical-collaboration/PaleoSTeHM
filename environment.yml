@@ -20,6 +20,7 @@ dependencies:
   - netcdf4
   - ipykernel
   - netcdf4==1.6.5
+  - nmmn
   - pip==21.2.4
   - pip:
     - pyro-api==0.1.2
