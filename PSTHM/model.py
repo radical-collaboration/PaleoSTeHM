@@ -533,8 +533,6 @@ def linear_model(X, y,x_sigma,y_sigma,intercept_prior,coefficient_prior,whitenoi
 
 
 
-
-
 def linear_model_uniform(X, y,x_sigma,y_range,intercept_prior,coefficient_prior,whitenoise_prior):
     '''
     A function to define a linear model with uniform likelihood in pyro

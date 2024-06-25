@@ -53,6 +53,9 @@ drive.mount('/content/drive')
 
 
 ## Tutorial Contents
+### Video Tutorial
+  - 2024 PaleoSTeHM workshop, in collaboration with PALSEA (PALeo constraints on SEA level rise) - [Day 1](https://www.youtube.com/watch?v=OFkmNY6puh0&t=615s), [Day 2](https://www.youtube.com/watch?v=d9X5NnFHCwc). 
+
 ### Introduction
   - **[PaleoSTeHM background and data level modelling](Tutorials/1.Introduction/1.Introduction.ipynb)** - Introduction to Bayesian Hierachical modelling, which consist of data level, process level and parameter level modelling. This notebook will cover data level modelling with an illustrative example of building data level model for coral-based sea-level records from the Great Barrier Reef. [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F1.Introduction%2F1.Introduction.ipynb)
   - **[Process level and parameter level modelling](Tutorials/1.Introduction/2.Process_level_modelling.ipynb)** - Process level and parameter level modelling tutorial, which will cover a range of process level model for paleo-environmental research, including hand-drawn model, linear model, change-point model, Gaussian Process model, physical model, and mixed physical and statistical model. [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F1.Introduction%2F2.Process_level_modelling.ipynb)
