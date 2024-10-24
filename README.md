@@ -77,7 +77,7 @@ drive.mount('/content/drive')
   - **[Updating Common Era sea-level curve](Tutorials/4.Applications/Updating_GMSL_curve.ipynb)** - Updating Common Era global sea-level change by adding your own data along with [Walker et al., 2022](https://www.nature.com/articles/s41467-022-28564-6).
 
 ## PaleoSTeHM User Interface 
-For fast implementation of models with specific modeling/analysis choices used in previous studies for temporal and spatiotemporal analysis. 
+- **[Automatic Spatiotemporal sea-level analysis](PaleoSTeHM_UI/Holocene_Spatiotemporal_analysis/Holocene_SP_anlysis.ipynb)** - Automatic implementation/optimization/visulization of Holocene sea-level change using a spatiotemporal Gaussian Process model with a zero mean function.
 
 
 ## License
