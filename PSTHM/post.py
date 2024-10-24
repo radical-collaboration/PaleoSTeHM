@@ -56,6 +56,44 @@ def cal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
     return difftimes,rate, rate_sd
 
 
+def cal_spatiotemporal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
+    '''A function to caluclate standard deviation of sea-levle change rate (i.e., first derivative of 
+    GP).
+    ------------------Inputs----------------------------
+    test_X: an array of test input values, either 1D (time) or 2D (time, lat, lon)
+    cov_matrix: full covariance matrix from GP regression
+    mean_rsl: GP regression produced mean RSL prediction
+    difftimestep: time period for averaging 
+    
+    ------------------Outputs---------------------------
+    difftimes: time series for the outputs
+    rate: averaged sea-level change rate
+    rate_var: averaged sea-level change rate covariance matrix
+    rate_sd: averaged sea-level change rate standard deviation
+    '''
+    if len(test_X.shape) == 1:
+        
+        Mdiff = np.array(np.equal.outer(test_X, test_X.T),dtype=int) - np.array(np.equal.outer(test_X, test_X.T + difftimestep),dtype=int)
+    else:
+        Mdiff = np.array(np.equal.outer(test_X[:,0], test_X[:,0].T),dtype=int) - np.array(np.equal.outer(test_X[:,0], test_X[:,0].T + difftimestep),dtype=int)
+        Mdiff_2 = np.array(np.equal.outer(test_X[:,1], test_X[:,1].T),dtype=int)
+        Mdiff_3 = np.array(np.equal.outer(test_X[:,2], test_X[:,2].T),dtype=int)
+        Mdiff = Mdiff * Mdiff_2 * Mdiff_3
+    sub = np.where(np.sum(Mdiff, axis=1) == 0)[0]
+    Mdiff = Mdiff[sub, :]
+    if len(test_X.shape) == 1:
+        difftimes = np.abs(Mdiff) @ test_X / np.sum(np.abs(Mdiff), axis=1)
+        Mdiff = Mdiff / (Mdiff @ test_X.T)[:,None]
+    else:
+        difftimes = np.abs(Mdiff) @ test_X[:,0] / np.sum(np.abs(Mdiff), axis=1)
+        Mdiff = Mdiff / (Mdiff @ test_X[:,0].T)[:,None]
+    rate_var = Mdiff @ cov_matrix @ Mdiff.T
+    rate_sd = np.sqrt(np.diag(rate_var))
+    rate = Mdiff @ mean_rsl
+    
+    return difftimes,rate, rate_var,rate_sd
+
+
 def decompose_kernels(gpr,pred_matrix,kernels):
     '''
     A function to calculate different kernels contribution to final prediction

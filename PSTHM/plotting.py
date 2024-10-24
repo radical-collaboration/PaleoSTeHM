@@ -20,25 +20,42 @@ matplotlib.rcParams['ytick.major.size'] = 8
 matplotlib.rcParams['axes.labelsize'] = 22
 matplotlib.rcParams['figure.figsize'] = (12, 6)
 matplotlib.rcParams['legend.frameon'] = 'False'
-
-def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None,CE=False):
+def plot_uncertainty_boxes( x, y, x_error, y_error, fc = (1,0.82,0.86,0.15),ec =(0.7,0,0,0.7) ,ax=None,CE=False):
     '''
     A function to plot uncertainty box for data with vertical and horizontal uncertainties.
 
     -----------------Input-------------------
     x: a 1-D array of input data
     y: a 1-D array of ouput data
-    x_error: a 1-D array containing 2 sigma uncertainty of input data
-    y_error: a 1-D array containing 2 sigma uncertainty of output data
+    x_error: a 1-D array containing 2 sigma uncertainty of input data; or 2-D array containing negative and positive 1sigma uncertainties
+    y_error: a 1-D array containing 2 sigma uncertainty of output data; or 2-D array containing negative and positive 1sigma uncertainties
+    fc: face color of the box
+    ec: edge color of the box
 
     ---------------Return-------------------
-    ax: a matplotlib ax of output plot
+    ax: a matplotlib ax of output plot, box covers 95% confidence interval of data
     '''
+    x = np.array(x)
+    y = np.array(y)
+    x_error = np.array(x_error)
+    y_error = np.array(y_error)
     if ax == None: ax = plt.subplot(111)
     for i in range(len(x)):
-        ax.add_patch(plt.Rectangle((x[i] - x_error[i], y[i] - y_error[i]), 2 * x_error[i], 2*  y_error[i], 
-                                    fill=True, fc=(1,0.82,0.86,0.15),ec=(0.7,0,0,0.7), linewidth=3))
-
+        if (x_error.ndim == 1) and (y_error.ndim == 1):
+            ax.add_patch(plt.Rectangle((x[i] - x_error[i], y[i] - y_error[i]), 2 * x_error[i], 2*  y_error[i], 
+                                        fill=True, fc=fc,ec=ec, linewidth=3))
+        elif (x_error.ndim == 2) and (y_error.ndim == 2):
+            ax.add_patch(plt.Rectangle((x[i] - x_error[i][0], y[i] - y_error[i][0]),x_error[i][1]+x_error[i][0],  y_error[i][1]+y_error[i][0], 
+                                        fill=True, fc=fc,ec=ec, linewidth=3))
+        elif (x_error.ndim == 2) and (y_error.ndim == 1):
+            ax.add_patch(plt.Rectangle((x[i] - x_error[i][0], y[i] - y_error[i]),x_error[i][1]+x_error[i][0],  2*  y_error[i], 
+                                        fill=True, fc=fc,ec=ec, linewidth=3))
+        elif (x_error.ndim == 1) and (y_error.ndim == 2):
+            ax.add_patch(plt.Rectangle((x[i] - x_error[i], y[i] - y_error[i][0]),2* x_error[i],  y_error[i][1]+y_error[i][0], 
+                                        fill=True, fc=fc,ec=ec, linewidth=3))
+    #sudo plot to generate label 
+    ax.add_patch(plt.Rectangle((0, 0), 0, 0, 
+                                        fill=True, fc=fc,ec=ec, linewidth=3,label='SLIPs'))
     #     ax.set_xlim(np.min(x)-x_error[np.argmin(x)]*5,np.max(x)+x_error[np.argmax(x)]*5)
     #     ax.set_ylim(np.min(y)-y_error[np.argmin(y)]*5,np.max(y)+y_error[np.argmax(y)]*5)
     if CE:
@@ -47,6 +64,58 @@ def plot_uncertainty_boxes( x, y, x_error, y_error, ax=None,CE=False):
         ax.set_xlabel('Age (BP)')
     ax.set_ylabel('RSL (m)')
 
+    return ax
+
+def plot_limiting_data(x, y, x_error, y_error,marine_limiting=True ,ax=None,CE=False):
+    '''
+    A function to plot marine/terrestrial limiting data with vertical and horizontal uncertainties.
+    -----------------Input-------------------
+    x: a 1-D array of input data
+    y: a 1-D array of ouput data
+    x_error: a 1-D array containing 2 sigma uncertainty of input data; or 2-D array containing negative and positive 1sigma uncertainties
+    y_error: a 1-D array containing 2 sigma uncertainty of output data; or 2-D array containing negative and positive 1sigma uncertainties
+    fc: face color of the box
+    ec: edge color of the box
+
+    ---------------Return-------------------
+    ax: a matplotlib ax of output plot, box covers 95% confidence interval of data
+    '''
+
+    x = np.array(x)
+    y = np.array(y)
+    x_error = np.array(x_error)
+    y_error = np.array(y_error)
+
+    if ax == None: ax = plt.subplot(111)
+    
+    if marine_limiting:
+        if y_error.ndim == 1:
+            if x_error.ndim == 1:
+                ax.errorbar(x,y,xerr=x_error,yerr=[y_error,[0]*len(y_error)],fmt='None',color='steelblue',label='Marine limiting',linewidth=4)
+            elif x_error.ndim == 2:
+                ax.errorbar(x,y,xerr=[x_error[:,0],x_error[:,1]],yerr=[y_error,[0]*len(y_error)],fmt='None',color='steelblue',label='Marine limiting',linewidth=3)
+        elif y_error.ndim == 2:
+            if x_error.ndim == 1:
+                ax.errorbar(x,y,xerr=x_error,yerr=[y_error[:,0],[0]*len(y_error)],fmt='None',color='steelblue',label='Marine limiting',linewidth=4)
+            elif x_error.ndim == 2:
+                ax.errorbar(x,y,xerr=[x_error[:,0],x_error[:,1]],yerr=[y_error[:,0],[0]*len(y_error)],fmt='None',color='steelblue',label='Marine limiting',linewidth=3)
+    else:
+        if y_error.ndim == 1:
+            if x_error.ndim == 1:
+                plt.errorbar(x,y,xerr=x_error,yerr=[[0]*len(y_error),y_error],fmt='None',color='green',label='Terrestrial limiting',linewidth=4)
+            elif x_error.ndim == 2:
+                plt.errorbar(x,y,xerr=[x_error[:,0],x_error[:,1]],yerr=[[0]*len(y_error),y_error],fmt='None',color='green',label='Terrestrial limiting',linewidth=3)
+        elif y_error.ndim == 2:
+            if x_error.ndim == 1:
+                plt.errorbar(x,y,xerr=x_error,yerr=[y_error[:,0],[0]*len(y_error)],fmt='None',color='green',label='Terrestrial limiting',linewidth=4)
+            elif x_error.ndim == 2:
+                plt.errorbar(x,y,xerr=[x_error[:,0],x_error[:,1]],yerr=[[0]*len(y_error),y_error[:,0]],fmt='None',color='green',label='Terrestrial limiting',linewidth=3)
+        
+    if CE:
+        ax.set_xlabel('Age (CE)')
+    else:
+        ax.set_xlabel('Age (BP)')
+    ax.set_ylabel('RSL (m)')
     return ax
 
 

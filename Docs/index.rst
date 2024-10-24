@@ -13,6 +13,7 @@ Welcome to PaleoSTeHM's documentation!
    about
    apidoc
    installation
+   tutorials
 
 
 

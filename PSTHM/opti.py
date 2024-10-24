@@ -56,20 +56,20 @@ def SVI_optm(gpr,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,equal_kernel
             pass
         else:
             for kernels in equal_kernels:
-                if kernels[0] in pyro.get_param_store().keys():
-                    pass
-                elif kernels[0]+'_map' in pyro.get_param_store().keys():
-                    kernels[0] = kernels[0]+'_map'
-                else:
-                    print(kernels[0], ' not in pyro storage')
-
-                if kernels[1] in pyro.get_param_store().keys():
-                    pass
-                elif kernels[1]+'_map' in pyro.get_param_store().keys():
-                    kernels[1] = kernels[1]+'_map'
-                else:
-                    print(kernels[1], ' not in pyro storage')
-                pyro.get_param_store()[kernels[0]] = pyro.get_param_store()[kernels[1]]
+                for i4, kernel in enumerate(kernels):
+                    
+                    # Check if the kernel is in the param store or if its '_map' version is present
+                    if kernel in pyro.get_param_store().keys():
+                        pass
+                    elif kernel + '_map' in pyro.get_param_store().keys():
+                        kernels[i4] = kernel + '_map'
+                    else:
+                        print(kernel, ' not in pyro storage')
+                
+                # After updating the kernels, set the first kernel to equal the others
+                for i5 in range(1, len(kernels)):
+                    print(i5, kernels[i5])
+                    pyro.get_param_store()[kernels[i5]] = pyro.get_param_store()[kernels[0]]
 
         for i2 in pyro.get_param_store().values():
             if i2.numel()==1:
@@ -166,20 +166,20 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,e
             pass
         else:
             for kernels in equal_kernels:
-                if kernels[0] in pyro.get_param_store().keys():
-                    pass
-                elif kernels[0]+'_map' in pyro.get_param_store().keys():
-                    kernels[0] = kernels[0]+'_map'
-                else:
-                    print(kernels[0], ' not in pyro storage')
-
-                if kernels[1] in pyro.get_param_store().keys():
-                    pass
-                elif kernels[1]+'_map' in pyro.get_param_store().keys():
-                    kernels[1] = kernels[1]+'_map'
-                else:
-                    print(kernels[1], ' not in pyro storage')
-                pyro.get_param_store()[kernels[0]] = pyro.get_param_store()[kernels[1]]
+                for i4, kernel in enumerate(kernels):
+                    
+                    # Check if the kernel is in the param store or if its '_map' version is present
+                    if kernel in pyro.get_param_store().keys():
+                        pass
+                    elif kernel + '_map' in pyro.get_param_store().keys():
+                        kernels[i4] = kernel + '_map'
+                    else:
+                        print(kernel, ' not in pyro storage')
+                
+                # After updating the kernels, set the first kernel to equal the others
+                for i5 in range(1, len(kernels)):
+                    print(i5, kernels[i5])
+                    pyro.get_param_store()[kernels[i5]] = pyro.get_param_store()[kernels[0]]
         
         for i2 in pyro.get_param_store().values():
             if i2.numel()==1:
