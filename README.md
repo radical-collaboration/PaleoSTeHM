@@ -72,9 +72,12 @@ drive.mount('/content/drive')
  - **[Spatio-temporal Gassusian Process with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models. [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F3.ST_GP%2F10.STGP_with_physical_model.ipynb)
 
 ### Applications
- - **[Common Era Sea-Level Reconstruction](Tutorials/4.Applications/Kopp_et_al_2016.ipynb)** - Reconstructing Common Era global sea-level change using method introduced in [Kopp et al., 2016](https://www.pnas.org/doi/abs/10.1073/pnas.1517056113). [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F4.Applications%2FKopp_et_al_2016.ipynb)
+ - **[Common Era Sea-Level Reconstruction](Tutorials/4.Applications/Kopp_et_al_2016.ipynb)** - Reconstructing Common Era global sea-level change using method introduced in [Kopp et al., 2016](https://www.pnas.org/doi/abs/10.1073/pnas.1517056113). [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F4.Applications%2FKopp_et_al_2016.ipynb)3
 
   - **[Updating Common Era sea-level curve](Tutorials/4.Applications/Updating_GMSL_curve.ipynb)** - Updating Common Era global sea-level change by adding your own data along with [Walker et al., 2022](https://www.nature.com/articles/s41467-022-28564-6).
+
+## PaleoSTeHM User Interface 
+For fast implementation of models with specific modeling/analysis choices used in previous studies for temporal and spatiotemporal analysis. 
 
 
 ## License

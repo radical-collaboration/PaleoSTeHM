@@ -73,6 +73,7 @@ def load_regional_rsl_data(file,CE=False):
     rsl_lon = data['Longitude']
     rsl_lat = data['Latitude']
     rsl_region = data['Region.1']
+    rsl_region_name = data['Region']
     rsl_limiting = data['Limiting']
     marine_index, SLIP_index, terrestrial_index = rsl_limiting==-1, rsl_limiting==0, rsl_limiting==1
 
@@ -83,13 +84,13 @@ def load_regional_rsl_data(file,CE=False):
     x_sigma = torch.tensor(rsl_age_2sd/2).flatten()
     
     marine_limiting = [X[marine_index],y[marine_index],y_sigma[marine_index],
-                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values]
+                       x_sigma[marine_index],rsl_lon[marine_index].values,rsl_lat[marine_index].values, rsl_region[marine_index].values, rsl_region_name[marine_index].values]
 
     SLIP = [X[SLIP_index],y[SLIP_index],y_sigma[SLIP_index],
-                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values]
+                       x_sigma[SLIP_index],rsl_lon[SLIP_index].values,rsl_lat[SLIP_index].values, rsl_region[SLIP_index].values, rsl_region_name[SLIP_index].values]
 
     marine_limiting = [X[terrestrial_index],y[terrestrial_index],y_sigma[terrestrial_index],
-                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values]
+                      x_sigma[terrestrial_index],rsl_lon[terrestrial_index].values,rsl_lat[terrestrial_index].values, rsl_region[terrestrial_index].values, rsl_region_name[terrestrial_index].values]
 
     return marine_limiting, SLIP, marine_limiting
 
