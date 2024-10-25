@@ -7,7 +7,7 @@ A modern, scalable Spatio-Temporal Hierarchical Modeling framework for paleo-env
 ======================================
 PaleoSTeHM is a paleo-environmental modelling faced API based upon pyro, a universal probabilistic programming language supported by PyTorch on the backend. Therefore, it not only supports probabilistic programming not also the auto-differentiation and GPU acceleration. This API will provide easy-to-use models to infer the spatio or spatio-temporal variation of environmental change from geological data, with tutorials that cover the background theories and hand-on practicals.
 
-PaleoSTeHM is being developed by the `Rutgers Earth System Science & Policy Lab <https://earthscipol.net/>`_ and is now activaly managed by `Yucheng Lin<https://yclincom.wordpress.com/>`_ with Committee members (Robert Kopp, Andrew Kemp and Juliet Sefton).
+PaleoSTeHM is being developed by the `Rutgers Earth System Science & Policy Lab <https://earthscipol.net/>`_ and is now activaly managed by `Yucheng Lin<https://yclincom.wordpress.com/>`_ with Committee members (Robert Kopp, Andrew Kemp and Juliet Sefton). PaleoSTeHM is released under the `MIT license <https://opensource.org/license/MIT>`_.
 
 PaleoSTeHM github page can be found at:
 
