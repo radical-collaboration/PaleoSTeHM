@@ -11,11 +11,13 @@ import pandas as pd
 import sys
 import matplotlib.pyplot as plt
 import netCDF4 as nc
-
+import cartopy.crs as ccrs
 sys.path.append('../..')
 import PSTHM 
 import pyro.distributions as dist
 import pyro 
+import cartopy
+import os
 
 def load_rsl_data(csv_file_name):
     '''
@@ -212,6 +214,9 @@ def implement_sp_gp_model(X_all, y, rsl_sigma, rsl_age_sigma,iteration=1000):
     # Create a DataFrame to display the results in a tabular format
     df_optimized_params = pd.DataFrame(list(optimized_params.items()), columns=['Kernel', 'Optimized Value'])
     print('Optimized parameters:',df_optimized_params)
+    #check if the directory exists
+    if not os.path.exists('Outputs/Hyperparameters/'):
+        os.makedirs('Outputs/Hyperparameters/')
     df_optimized_params.to_csv('Outputs/Hyperparameters/optimized_params.csv', index=False)
 
     print('-----------------------------------')
@@ -402,7 +407,9 @@ def process_rsl_data(rsl_region, rsl_region_name, rsl_lat, rsl_lon, rsl_age, rsl
         all_regional_nl_rate_std[i] = rsl_rate_sd_regional_nl
         all_local_nl_rate_mean[i] = rsl_rate_local_nl
         all_local_nl_rate_std[i] = rsl_rate_sd_local_nl
-
+        #check if the directory exists
+        if not os.path.exists('Outputs/Temporal_plots_data/'):
+            os.makedirs('Outputs/Temporal_plots_data/')
         plt.savefig('Outputs/Temporal_plots_data/'+all_region_name[i]+'.pdf',dpi=200);
         plt.clf()
     print('A total number of '+str(len(all_region))+' figures have been generated and saved to Outputs/Temporal_plots_data/')
@@ -592,7 +599,8 @@ def process_rsl_predictions_and_save(rsl_lat, rsl_lon, gpr, test_time=np.arange(
         plt.colorbar()
 
         # Standard deviation plots
-        all_std = np.array([y_std, global_std, regional_linear_std, regional_nl_std, local_nl_std]).flatten()
+        all_std = np.array([y_std.detach().numpy(), global_std.detach().numpy(), regional_linear_std.detach().numpy(),
+                             regional_nl_std.detach().numpy(), local_nl_std.detach().numpy()]).flatten()
         std_vmin = np.min(all_std)
         std_vmax = np.max(all_std)
 
@@ -625,7 +633,9 @@ def process_rsl_predictions_and_save(rsl_lat, rsl_lon, gpr, test_time=np.arange(
         plt.scatter(pred_matrix[:, 2], pred_matrix[:, 1], c=local_nl_std.detach().numpy(), s=200, marker='s', zorder=-1, cmap='magma', vmin=std_vmin, vmax=std_vmax)
         plt.title('Local non-linear kernel standard deviation (m)')
         plt.colorbar()
-
+        #check if the directory exists
+        if not os.path.exists('Outputs/Spatial_plots_data'):
+            os.makedirs('Outputs/Spatial_plots_data')
         plt.savefig(f'Outputs/Spatial_plots_data/{test_time[i]}.pdf', dpi=300)
         plt.clf()
     print('A total of', len(test_time), 'plots have been saved in the Outputs/Spatial_plots_data directory.')
