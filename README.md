@@ -7,6 +7,10 @@ This repository contains the Jupyter Notebook based tutorials for PaleoSTeHM pro
 
 PaleoSTeHM is a paleo-environmental modelling faced API based upon [pyro](https://pyro.ai/), a universal probabilistic programming language supported by [PyTorch](https://pytorch.org/) on the backend. Therefore, it not only supports probabilistic programming not also the auto-differentiation and GPU acceleration. This API will provide easy-to-use models to infer the spatio or spatio-temporal variation of environmental change from geological data, with tutorials that cover the background theories and hand-on practicals. 
 
+The work described in this repository is documented in the following publication:  
+**DOI:** [10.5194/egusphere-2024-2183](https://doi.org/10.5194/egusphere-2024-2183)
+
+
 Please note that this repository is under active development by Yucheng Lin, Alex Reedy and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
 
 ## Installation
@@ -72,7 +76,7 @@ drive.mount('/content/drive')
  - **[Spatio-temporal Gassusian Process with Physical Models](Tutorials/3.ST_GP/10.STGP_with_physical_model.ipynb)** - Spatio-temporal Gaussian Process in combination with one or multiple physical models. [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F3.ST_GP%2F10.STGP_with_physical_model.ipynb)
 
 ### Applications
- - **[Common Era Sea-Level Reconstruction](Tutorials/4.Applications/Kopp_et_al_2016.ipynb)** - Reconstructing Common Era global sea-level change using method introduced in [Kopp et al., 2016](https://www.pnas.org/doi/abs/10.1073/pnas.1517056113). [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F4.Applications%2FKopp_et_al_2016.ipynb)3
+ - **[Common Era Sea-Level Reconstruction](Tutorials/4.Applications/Kopp_et_al_2016.ipynb)** - Reconstructing Common Era global sea-level change using method introduced in [Kopp et al., 2016](https://www.pnas.org/doi/abs/10.1073/pnas.1517056113). [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/radical-collaboration/PaleoSTeHM/HEAD?labpath=Tutorials%2F4.Applications%2FKopp_et_al_2016.ipynb).
 
   - **[Updating Common Era sea-level curve](Tutorials/4.Applications/Updating_GMSL_curve.ipynb)** - Updating Common Era global sea-level change by adding your own data along with [Walker et al., 2022](https://www.nature.com/articles/s41467-022-28564-6).
 
