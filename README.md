@@ -21,7 +21,7 @@ Please note that this repository is managed by Yucheng Lin, Alex Reedy and Rober
 
 ## Installation
 
-### Option 1: Full Installation (Includes Tutorials)
+### Option 1: Full Local Installation (Includes Tutorials)
 
 1. Clone the PaleoSTeHM repository.
 
@@ -44,7 +44,7 @@ conda activate ve3PaleoSTeHM
 jupyter-lab
 ```
 
-### Option 2: Google Colab Install
+### Option 2: Google Colab Installation (Includes Tutorials)
 
 The following are instructions on how to run PaleoSTeHM tutorials through Google Colab (https://colab.research.google.com/). One must have a Google account and access to Google Drive to use PaleoSTeHM in this configuration.
 
@@ -62,7 +62,7 @@ drive.mount('/content/drive')
 3. Open Google Drive and navigate to the newly created PaleoSTeHM repo. Go to the tutorial you would like to run (i.e. /PaleoSTeHM/Tutorials/1.introduction/introduction.ipynb) right click and select "run from Google Colab".
 
 
-### Option 3: Lightweight Installation (Code Only)
+### Option 3: Lightweight Local Installation (Code Only)
 
 ```
 pip install PaleoSTeHM==1.0
