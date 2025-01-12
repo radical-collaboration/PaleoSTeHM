@@ -205,7 +205,7 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,e
     return gpr,track_list
 
 
-def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+def NUTS_mcmc(gpr,num_samples=2500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
     '''
     A function to run NUTS MCMC for GP regression model
 
@@ -233,7 +233,7 @@ def NUTS_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,pri
 
     return mcmc
 
-def HMC_mcmc(gpr,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+def HMC_mcmc(gpr,num_samples=2500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
     '''
     A function to run Hamiltonian Monte Carlo for GP regression model
 
@@ -304,7 +304,7 @@ def opti_pyro_model(model, X, y, x_sigma, y_sigma, *args, lr=0.05, number_of_ste
 
     return guide, losses
 
-def mcmc_pyro_model(model,model_paras,num_samples=1500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
+def mcmc_pyro_model(model,model_paras,num_samples=2500,warmup_steps=200,target_accept_prob = 0.8,print_stats=False):
     '''
     A function to run MCMC model in Pyro
 

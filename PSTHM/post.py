@@ -63,7 +63,7 @@ def cal_spatiotemporal_rate_var(test_X,cov_matrix,mean_rsl,difftimestep=200):
     test_X: an array of test input values, either 1D (time) or 2D (time, lat, lon)
     cov_matrix: full covariance matrix from GP regression
     mean_rsl: GP regression produced mean RSL prediction
-    difftimestep: time period for averaging 
+    difftimestep: time period for averaging, e.g., 100 for 100-year average rsl rate
     
     ------------------Outputs---------------------------
     difftimes: time series for the outputs

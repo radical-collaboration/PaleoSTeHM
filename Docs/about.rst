@@ -13,6 +13,12 @@ PaleoSTeHM github page can be found at:
 
    https://github.com/radical-collaboration/PaleoSTeHM.git
 
+PaleoSTeHM PyPI page:
+
+.. code-block:: none
+
+   https://pypi.org/project/PaleoSTeHM/
+
 PaleoSTeHM paper page can be found at:
 
 .. code-block:: none
