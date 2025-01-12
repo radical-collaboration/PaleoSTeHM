@@ -65,7 +65,7 @@ drive.mount('/content/drive')
 ### Option 3: Lightweight Local Installation (Code Only)
 
 ```
-pip install PaleoSTeHM==1.0
+pip install PaleoSTeHM
 ```
 
 
