@@ -16,7 +16,7 @@ The work described in this repository is documented in the following publication
 **DOI:** [10.5194/egusphere-2024-2183](https://doi.org/10.5194/egusphere-2024-2183)
 
 
-Please note that this repository is managed by Yucheng Lin, Alex Reedy and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
+Please note that this repository is managed by Yucheng Lin and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
 
 
 ## Installation
