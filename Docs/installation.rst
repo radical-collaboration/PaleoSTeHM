@@ -46,3 +46,10 @@ The following are instructions on how to run PaleoSTeHM tutorials through `Googl
    !git clone https://github.com/radical-collaboration/PaleoSTeHM.git
 
 3. **Open Google Drive** and navigate to the newly created PaleoSTeHM repo. Go to the tutorial you would like to run (i.e. /PaleoSTeHM/Tutorials/1.introduction/introduction.ipynb), right-click and select "run from Google Colab".
+
+Pip Installation
+=========================
+
+.. code-block:: none
+
+   pip install PaleoSTeHM

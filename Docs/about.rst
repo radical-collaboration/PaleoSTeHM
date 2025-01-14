@@ -25,4 +25,4 @@ PaleoSTeHM paper page can be found at:
 
    https://egusphere.copernicus.org/preprints/2024/egusphere-2024-2183/
 
-Please note that this repository is under development by Yucheng Lin, Alex Reedy and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu.
+Please note that this repository is under development by Yucheng Lin and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu.
