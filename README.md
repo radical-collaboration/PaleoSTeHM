@@ -96,6 +96,8 @@ pip install PaleoSTeHM
 
   - **[Updating Common Era sea-level curve](Tutorials/4.Applications/Updating_GMSL_curve.ipynb)** - Updating Common Era global sea-level change by adding your own data along with [Walker et al., 2022](https://www.nature.com/articles/s41467-022-28564-6).
 
+  - **[Quantify ocean temperature and thermal expansion effect](Tutorials/4.Applications/PaleoSTeHM_Pymc_GMOT_example.ipynb)** - Using PaleoSTeHM temporal Gaussian Process (GP) framework to fit proxy data for ocean mean temperature from [Shackleton et al. (2021)](https://cp.copernicus.org/articles/17/2273/2021/cp-17-2273-2021.pdf) and to reproduce the time series of ocean temperature and its thermal expansion effect on global mean sea-level change from [Creel et al. 2024](https://eartharxiv.org/repository/view/5419/), who used the [PyMC](https://www.pymc.io/welcome.html) library. .
+
 ## PaleoSTeHM User Interface 
 - **[Automatic Spatiotemporal sea-level analysis](PaleoSTeHM_UI/Holocene_Spatiotemporal_analysis/Holocene_SP_anlysis.ipynb)** - Automatic implementation/optimization/visulization of Holocene sea-level change using a spatiotemporal Gaussian Process model with a zero mean function.
 
