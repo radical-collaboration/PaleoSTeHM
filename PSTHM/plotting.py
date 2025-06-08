@@ -595,7 +595,7 @@ def plot_track_list(track_list):
                 if i * 3 + j < track_list.shape[1]:
 
                     axes[i, j].plot(np.arange(len(track_list)),
-                                    track_list.iloc[:, i * 3 + j]
+                                    track_list.iloc[:, i * 3 + j].values
                                     )
 
                     axes[i, j].set_title('{}: {:6.6f}'.format(track_list.columns[i * 3 + j],
