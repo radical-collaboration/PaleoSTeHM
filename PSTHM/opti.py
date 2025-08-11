@@ -286,7 +286,7 @@ def opti_pyro_model(model, X, y, x_sigma, y_sigma, *args, lr=0.05, number_of_ste
 
     # Setup the optimizer with initial learning rate
     adam = Adam({"lr": lr})
-    scheduler = ExponentialLR({'optimizer': adam, 'optim_args': {'lr': step_size}, 'gamma': decay_r})
+    scheduler = pyro.optim.ExponentialLR({'optimizer': pyro.optim.Adam, 'optim_args': {'lr': lr}, 'gamma': decay_r})
 
     # Setup the SVI object for stochastic variational inference
     svi = SVI(model, guide, adam, loss=Trace_ELBO())
