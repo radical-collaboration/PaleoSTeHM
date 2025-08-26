@@ -15,7 +15,7 @@ This repository contains the Jupyter Notebook based tutorials for PaleoSTeHM pro
 PaleoSTeHM is a paleo-environmental modelling faced API based upon [pyro](https://pyro.ai/), a universal probabilistic programming language supported by [PyTorch](https://pytorch.org/) on the backend. Therefore, it not only supports probabilistic programming not also the auto-differentiation and GPU acceleration. This API will provide easy-to-use models to infer the spatio or spatio-temporal variation of environmental change from geological data, with tutorials that cover the background theories and hand-on practicals. 
 
 The work described in this repository is documented in the following publication:  
-**DOI:** [10.5194/egusphere-2024-2183](https://doi.org/10.5194/egusphere-2024-2183)
+**DOI:** [10.5194/gmd-18-2609-2025](https://doi.org/10.5194/gmd-18-2609-2025)
 
 
 Please note that this repository is managed by Yucheng Lin and Robert Kopp. If you have any questions please contact Yucheng: yc.lin@rutgers.edu. 
@@ -107,6 +107,21 @@ pip install PaleoSTeHM
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details
+
+## Reference
+
+```bibtex
+@article{lin2025paleostehm,
+  title={PaleoSTeHM v1. 0: a modern, scalable spatiotemporal hierarchical modeling framework for paleo-environmental data},
+  author={Lin, Yucheng and Kopp, Robert E and Reedy, Alexander and Turilli, Matteo and Jha, Shantenu and Ashe, Erica L},
+  journal={Geoscientific Model Development},
+  volume={18},
+  number={9},
+  pages={2609--2637},
+  year={2025},
+  publisher={Copernicus Publications G{\"o}ttingen, Germany}
+}
+```
 
 ## Acknowledgements
 
