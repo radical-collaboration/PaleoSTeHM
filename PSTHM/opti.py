@@ -138,9 +138,9 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,e
     for i in tqdm(range(num_iteration)):
         #update vertical noise based on gradient
         if gpu:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True).cuda()
+            x_test = gpr.X.clone().detach().requires_grad_(True).cuda()
         else:
-            x_test = torch.tensor(gpr.X.clone(),requires_grad=True)
+            x_test = gpr.X.clone().detach().requires_grad_(True)
         y_mean, _ = gpr(x_test.double(), full_cov=False)
         y_mean.sum().backward(retain_graph=True)
         if gpu:
@@ -150,9 +150,9 @@ def SVI_NI_optm(gpr,x_sigma,num_iteration=500,lr=0.1,decay_r = 1,step_size=100,e
         if y_rate.ndim>1: y_rate = y_rate[:,0]
         new_sigma = torch.sqrt((y_rate**2*(x_sigma)**2)+y_sigma**2)
         if gpr.noise.dim()==1:
-            gpr.noise = torch.tensor(new_sigma**2)
+            gpr.noise = new_sigma**2
         elif gpr.noise.dim()==2:
-            gpr.noise.view(-1)[:: N + 1] = torch.tensor(new_sigma**2)
+            gpr.noise.view(-1)[:: N + 1] = new_sigma**2
             
         scheduler.step()
         optimizer.zero_grad()
@@ -286,7 +286,7 @@ def opti_pyro_model(model, X, y, x_sigma, y_sigma, *args, lr=0.05, number_of_ste
 
     # Setup the optimizer with initial learning rate
     adam = Adam({"lr": lr})
-    scheduler = ExponentialLR({'optimizer': adam, 'optim_args': {'lr': step_size}, 'gamma': decay_r})
+    scheduler = pyro.optim.ExponentialLR({'optimizer': pyro.optim.Adam, 'optim_args': {'lr': lr}, 'gamma': decay_r})
 
     # Setup the SVI object for stochastic variational inference
     svi = SVI(model, guide, adam, loss=Trace_ELBO())

@@ -100,7 +100,7 @@ def check_pseudo(X,Z):
     A function to make sure there's no correlation between pseudo data and real data.
     '''
     check_geo_dim(X)
-    dis_fun = torch.outer(torch.tensor(X[:,1]).abs()<361,torch.tensor(Z[:,1]).abs()<361).double()
+    dis_fun = torch.outer(X[:,1].abs()<361, Z[:,1].abs()<361).double()
     return dis_fun
 
 class Isotropy(Kernel):
@@ -184,8 +184,8 @@ class Isotropy(Kernel):
         if Z.dim()==2: Z = Z[:,1:] #use lat and lon to calculate spatial distance
 
         # Convert coordinates to radians
-        X = torch.tensor(X)
-        Z = torch.tensor(Z)
+        X = torch.as_tensor(X, dtype=torch.get_default_dtype())
+        Z = torch.as_tensor(Z, dtype=torch.get_default_dtype())
  
         X_coordinates_rad = torch.deg2rad(X)
         Z_coordinates_rad = torch.deg2rad(Z)
