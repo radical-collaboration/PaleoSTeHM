@@ -279,7 +279,7 @@ def implement_sp_gp_model(
         torch.tensor(X_all, dtype=torch.float64),
         torch.tensor(y, dtype=torch.float64),
         combined_sp_kernel,
-        noise=torch.tensor(rsl_sigma.values, dtype=torch.float64),
+        noise=torch.tensor(rsl_sigma.values**2, dtype=torch.float64),
         jitter=1e-5,
     )
     print("-----------------------------------")
