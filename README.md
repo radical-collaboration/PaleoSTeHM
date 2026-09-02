@@ -19,7 +19,7 @@ The work described in this repository is documented in the following publication
 **DOI:** [doi.org/10.5194/gmd-18-2609-2025](https://doi.org/10.5194/gmd-18-2609-2025)
 
 
-Please note that this repository is managed by Yucheng Lin and Robert Kopp. If you have any questions please contact Yucheng: yucheng.lin@csiro.au. 
+Please note that this repository is managed by Yucheng Lin and Robert Kopp. If you have any questions please contact Yucheng: yucheng.lin@cityu.edu.hk. 
 
 
 ## Installation
